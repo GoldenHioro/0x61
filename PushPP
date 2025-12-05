@@ -1,0 +1,210 @@
+/**
+ * Extrai informações de e-mails com o marcador "PJe" no Gmail
+ * e as salva em uma planilha do Google Sheets.
+ * A planilha deve ter os cabeçalhos na linha 1:
+ * DataExtração,NúmeroProcesso,PoloAtivo,PoloPassivo,ClasseJudicial,Orgao,DataAutuacao,Assunto,DataMovimentacao,Movimento
+ */
+function extrairInfoPJe() {
+  var SPREADSHEET_NAME = "Dados PJe";
+  var LABEL_NAME = "PJe";
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SPREADSHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SPREADSHEET_NAME);
+    var headers = [
+      "DataExtração",
+      "NúmeroProcesso",
+      "PoloAtivo",
+      "PoloPassivo",
+      "ClasseJudicial",
+      "Orgao",
+      "DataAutuacao",
+      "Assunto",
+      "DataMovimentacao",
+      "Movimento", // Coluna J
+    ];
+    sheet.appendRow(headers);
+  }
+
+  var label = GmailApp.getUserLabelByName(LABEL_NAME);
+  if (!label) {
+    Logger.log("Marcador '" + LABEL_NAME + "' não encontrado.");
+    return;
+  }
+
+  var threads = label.getThreads();
+  var dataToAppend = [];
+
+  Logger.log("Total de threads encontradas com o marcador 'PJe': " + threads.length);
+
+  for (var i = 0; i < threads.length; i++) {
+    var thread = threads[i];
+    var messages = thread.getMessages();
+
+    for (var j = 0; j < messages.length; j++) {
+      var message = messages[j];
+
+      if (!message.isUnread()) continue;
+
+      var plainBody = message.getPlainBody();
+      var dataExtracao = new Date();
+
+      Logger.log("--- Conteúdo COMPLETO do Email (plainBody) para análise ---");
+      Logger.log(plainBody);
+      Logger.log("--- Fim do Conteúdo Completo ---");
+
+      var numeroProcesso = "",
+        poloAtivo = "",
+        poloPassivo = "",
+        classeJudicial = "",
+        orgao = "",
+        dataAutuacao = "",
+        assunto = "";
+      var movimentos = [];
+
+      var regexProcesso = /Número do Processo:\s*(.*)/;
+      var matchProcesso = plainBody.match(regexProcesso);
+      if (matchProcesso) numeroProcesso = matchProcesso[1].trim();
+
+      var regexPoloAtivo = /Polo Ativo:\s*(.*)/;
+      var matchPoloAtivo = plainBody.match(regexPoloAtivo);
+      if (matchPoloAtivo) poloAtivo = matchPoloAtivo[1].trim();
+
+      var regexPoloPassivo = /Polo Passivo:\s*(.*)/;
+      var matchPoloPassivo = plainBody.match(regexPoloPassivo);
+      if (matchPoloPassivo) poloPassivo = matchPoloPassivo[1].trim();
+
+      var regexClasseJudicial = /Classe Judicial:\s*(.*)/;
+      var matchClasseJudicial = plainBody.match(regexClasseJudicial);
+      if (matchClasseJudicial) classeJudicial = matchClasseJudicial[1].trim();
+
+      var regexOrgao = /Órgão:\s*(.*)/;
+      var matchOrgao = plainBody.match(regexOrgao);
+      if (matchOrgao) orgao = matchOrgao[1].trim();
+
+      var regexDataAutuacao = /Data de Autuação:\s*(.*)/;
+      var matchDataAutuacao = plainBody.match(regexDataAutuacao);
+      if (matchDataAutuacao) dataAutuacao = matchDataAutuacao[1].trim();
+
+      var regexAssunto = /Assunto:\s*(.*)/;
+      var matchAssunto = plainBody.match(regexAssunto);
+      if (matchAssunto) {
+        assunto = matchAssunto[1].trim();
+      }
+
+      // --- CAPTURA MOVIMENTOS ---
+      var regexMovimentacao = /(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})\s*-\s*([\s\S]*?)(?=\n*\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}\s*-|\n*Caso não tenha mais interesse|\n*\*ATENÇÃO:|\n*https:\/\/pje\.tjdft\.jus\.br|$)/g;
+      var matchMov;
+
+      while ((matchMov = regexMovimentacao.exec(plainBody)) !== null) {
+        var dataHora = matchMov[1];
+        var textoCompletoDoMovimento = matchMov[2].trim();
+        var descricao = "- " + textoCompletoDoMovimento;
+
+        Logger.log("MOVIMENTO CAPTURADO - Data/Hora: '" + dataHora + "', Descrição COMPLETA: '" + descricao + "'");
+
+        if (
+          descricao.toLowerCase() !== "data - movimento" &&
+          descricao !== "" &&
+          !descricao.toLowerCase().startsWith("assunto:")
+        ) {
+          movimentos.push({
+            data: dataHora,
+            descricao: descricao
+          });
+        }
+      }
+      // --- FIM DA CAPTURA ---
+
+      if (movimentos.length > 0) {
+        for (var m = 0; m < movimentos.length; m++) {
+          dataToAppend.push([
+            dataExtracao,
+            numeroProcesso,
+            poloAtivo,
+            poloPassivo,
+            classeJudicial,
+            orgao,
+            dataAutuacao,
+            assunto,
+            movimentos[m].data,
+            movimentos[m].descricao,
+          ]);
+        }
+      } else {
+        dataToAppend.push([
+          dataExtracao,
+          numeroProcesso,
+          poloAtivo,
+          poloPassivo,
+          classeJudicial,
+          orgao,
+          dataAutuacao,
+          assunto,
+          "",
+          "Sem Movimento Detectado",
+        ]);
+      }
+
+      // Marcar mensagem como lida e alterar marcadores
+      message.markRead();
+      var processedLabel = GmailApp.getUserLabelByName("PJe/Processado");
+      if (!processedLabel) {
+        processedLabel = GmailApp.createLabel("PJe/Processado");
+      }
+      thread.addLabel(processedLabel);
+      thread.removeLabel(label);
+    }
+  }
+
+  // Gravar dados na planilha
+  if (dataToAppend.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, dataToAppend.length, dataToAppend[0].length).setValues(dataToAppend);
+  }
+
+  /**
+ * Configura o gatilho para execução periódica.
+ */
+  // Agora chamamos o script InformeCliente sem duplicá-lo, chamando a sua função principal
+  ;atualizarInformeCliente();
+  
+  ;criarEventosConciliacoes();
+
+}
+
+
+  
+
+/**
+ * Configura o gatilho para execução periódica.
+ */
+function criarGatilhoExtrairInfoPJe() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() == "extrairInfoPJe") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  ScriptApp.newTrigger("extrairInfoPJe")
+    .timeBased()
+    .everyHours(1)
+    .create();
+
+  Logger.log("Gatilho 'extrairInfoPJe' criado para rodar a cada hora.");
+}
+
+/**
+ * Remove os gatilhos existentes.
+ */
+function removerGatilhosExtrairInfoPJe() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() == "extrairInfoPJe") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  Logger.log("Todos os gatilhos para 'extrairInfoPJe' foram removidos.");
+}
