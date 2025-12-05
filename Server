@@ -1,0 +1,107 @@
+/**
+ * SERVER.GS — VERSÃO FINAL
+ */
+
+
+/**
+ * RETORNA TODAS AS LINHAS PARA O HTML
+ */
+function getAvisos() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_PROCESSOS);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return JSON.stringify({ error: "Aba não encontrada" });
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return JSON.stringify([]);
+
+    const headers = data.shift().map(h => h.trim());
+    const avisos = data.map(row => {
+      let obj = {};
+      headers.forEach((h, i) => obj[h] = row[i]);
+      return obj;
+    });
+
+    return JSON.stringify(avisos);
+
+  } catch (e) {
+    return JSON.stringify({ error: e.toString() });
+  }
+}
+
+
+
+/**
+ * MARCAR checkbox manual da tabela HTML
+ */
+function updateContactStatus(numeroProcesso, newStatus) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sh = ss.getSheetByName(SHEET_NAME);
+
+    const last = sh.getLastRow();
+    const dados = sh.getRange(2, COL_PROC, last - 1, 1).getValues();
+
+    for (let i = 0; i < dados.length; i++) {
+      if (String(dados[i][0]).trim() === String(numeroProcesso).trim()) {
+        sh.getRange(i + 2, COL_CHECK).setValue(newStatus);
+        return JSON.stringify({ success: true });
+      }
+    }
+
+    return JSON.stringify({ success: false, error: "Processo não encontrado" });
+
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.toString() });
+  }
+}
+
+
+
+/**
+ * QUANDO CLICA NO BOTÃO "ENVIAR"
+ * Marca contato efetuado — SOMENTE SE permitido.
+ */
+function enviarMensagemWhats(numeroProcesso) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_PROCESSOS);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const colProc = headers.indexOf("NúmeroProcesso");
+    const colProx = headers.indexOf("PróximoContato");
+    const colCheck = headers.indexOf("ContatoEfetuadoHoje");
+    const colLink = headers.indexOf("LinkWhats");
+
+    for (let i = 1; i < data.length; i++) {
+
+      if (String(data[i][colProc]) !== String(numeroProcesso)) continue;
+
+      const prox = data[i][colProx];
+      const link = data[i][colLink];
+      const já = data[i][colCheck];
+
+      if (!link) return JSON.stringify({ success: false, error: "Link vazio" });
+      if (já === true) return JSON.stringify({ success: false, error: "Já enviado" });
+
+      const pc = prox instanceof Date ? prox : parseDateDMY(prox);
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      pc.setHours(0,0,0,0);
+
+      if (hoje.getTime() < pc.getTime())
+        return JSON.stringify({ success: false, error: "Ainda não é o dia" });
+
+      // MARCAR
+      sheet.getRange(i + 1, colCheck + 1).setValue(true);
+
+      return JSON.stringify({ success: true });
+    }
+
+    return JSON.stringify({ success: false, error: "Processo não encontrado" });
+
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.toString() });
+  }
+}
