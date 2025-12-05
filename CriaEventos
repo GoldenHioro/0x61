@@ -1,0 +1,152 @@
+/**
+ * CONTATOMAESTRO.GS — VERSÃO COMPLETA 2025
+ * ----------------------------------------
+ * ✔ Gera datas como Date nativas (NÃO TEXTO)
+ * ✔ Não quebra relatórios
+ * ✔ Debug completo no Logger
+ * ✔ Mantém todas as regras anteriores
+ */
+
+function atualizarContatosMaestro() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName("InformeCliente-APS");
+
+  if (!aba) {
+    Logger.log("ERRO: Aba 'InformeCliente-APS' não encontrada.");
+    return;
+  }
+
+  const dados = aba.getDataRange().getValues();
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  Logger.log("===== INICIANDO ContatoMaestro =====");
+  Logger.log("Data de hoje (normalizada): " + hoje);
+
+  for (let i = 1; i < dados.length; i++) {
+
+    const linha = dados[i];
+    const numeroProcesso = linha[0];
+    const dataAtualizacao = linha[4];       // DataÚltimaAtualização
+    const proximoContatoAtual = linha[5];   // PróximoContato
+    const contatoEfetuado = linha[6];       // checkbox
+    const telefone = linha[7];
+
+    Logger.log("\n--- Linha " + (i+1) + " -----------------------------");
+    Logger.log("Processo: " + numeroProcesso);
+
+    if (!numeroProcesso) {
+      Logger.log("Linha ignorada (processo vazio).");
+      continue;
+    }
+
+    // Valida data de atualização
+    if (!(dataAtualizacao instanceof Date)) {
+      Logger.log("DataÚltimaAtualização inválida → ignorando.");
+      continue;
+    }
+
+    const dataAtualizacaoSemHora = new Date(dataAtualizacao);
+    dataAtualizacaoSemHora.setHours(0, 0, 0, 0);
+
+    Logger.log("DataÚltimaAtualização: " + dataAtualizacao);
+    Logger.log("DataÚltimaAtualização (normalizada): " + dataAtualizacaoSemHora);
+    Logger.log("ContatoEfetuadoHoje? → " + contatoEfetuado);
+
+    // =====================================================
+    // REGRA 1: Movimentação HOJE → prioridade máxima
+    // =====================================================
+    if (mesmaData(hoje, dataAtualizacaoSemHora)) {
+
+      Logger.log("APLICANDO REGRA 1: Movimentação de hoje.");
+
+      let novoProximoContato;
+
+      if (!isDiaUtil(hoje)) {
+        Logger.log("Hoje NÃO é dia útil → empurrando para o próximo dia útil.");
+        novoProximoContato = proximoDiaUtil(hoje);
+      } else {
+        const horaMov = dataAtualizacao.getHours();
+        Logger.log("Hora da movimentação: " + horaMov);
+
+        if (horaMov < 13) {
+          Logger.log("Mov antes das 13h → PróximoContato = hoje");
+          novoProximoContato = new Date(hoje);
+        } else {
+          Logger.log("Mov após 13h → PróximoContato = próximo dia útil");
+          novoProximoContato = proximoDiaUtil(hoje);
+        }
+      }
+
+      Logger.log("Novo PróximoContato (Date real): " + novoProximoContato);
+
+      // SALVA **DATE NATIVO**
+      aba.getRange(i + 1, 6).setValue(novoProximoContato);
+      aba.getRange(i + 1, 9).setValue("");      // limpa DataContatoLongo
+      aba.getRange(i + 1, 7).setValue(false);   // reseta checkbox
+
+      continue;
+    }
+
+    // =====================================================
+    // REGRA 2: Checkbox marcado (gatilho manual)
+    // =====================================================
+    if (contatoEfetuado === true) {
+
+      Logger.log("APLICANDO REGRA 2: Checkbox marcado pelo operador.");
+
+      const novoProximoContato = adicionarDiasUteis(hoje, 5);
+
+      Logger.log("Novo PróximoContato (+5 dias úteis): " + novoProximoContato);
+
+      // SALVA DATE NATIVO
+      aba.getRange(i + 1, 6).setValue(novoProximoContato);
+      aba.getRange(i + 1, 9).setValue(new Date(hoje)); // salva Date real
+      aba.getRange(i + 1, 7).setValue(false);          // reseta checkbox
+
+      continue;
+    }
+
+    Logger.log("Nenhuma regra aplicada para esta linha.");
+  }
+
+  Logger.log("===== FINALIZADO ContatoMaestro =====");
+}
+
+
+
+/* ============================================
+   FUNÇÕES AUXILIARES (mantidas, mas revisadas)
+   ============================================ */
+
+function mesmaData(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() &&
+         d1.getMonth() === d2.getMonth() &&
+         d1.getDate() === d2.getDate();
+}
+
+function isDiaUtil(data) {
+  const dia = data.getDay();
+  return dia !== 0 && dia !== 6; // 0=Domingo, 6=Sábado
+}
+
+function adicionarDiasUteis(data, n) {
+  const nova = new Date(data);
+  let dias = 0;
+
+  while (dias < n) {
+    nova.setDate(nova.getDate() + 1);
+    if (isDiaUtil(nova)) dias++;
+  }
+
+  return nova;
+}
+
+function proximoDiaUtil(data) {
+  const nova = new Date(data);
+  do {
+    nova.setDate(nova.getDate() + 1);
+  } while (!isDiaUtil(nova));
+  return nova;
+}
+    
