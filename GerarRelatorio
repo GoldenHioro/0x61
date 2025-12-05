@@ -1,0 +1,120 @@
+/**
+ * @OnlyCurrentDoc
+ *
+ * SCRIPT 'GerarRelatorios.gs' (VERSÃO REESTRUTURADA E AUTÔNOMA)
+ * * Responsabilidade ÚNICA: Ler a planilha 'InformeCliente-APS', identificar
+ * todos os processos cujo próximo contato está agendado para HOJE,
+ * e gerar/atualizar um relatório em um Google Docs.
+ *
+ */
+
+function gerarRelatorioDiario() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName("InformeCliente-APS");
+  if (!aba) {
+    Logger.log("Aba 'InformeCliente-APS' não encontrada. Abortando Gerador de Relatório.");
+    return;
+  }
+
+  const dados = aba.getDataRange().getValues();
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  
+  const processosParaRelatorio = [];
+
+  Logger.log("--- INICIANDO GerarRelatorios (Coleta de Dados) ---");
+
+  // Loop para ler a planilha e coletar processos com contato para hoje
+  for (let i = 1; i < dados.length; i++) {
+    const linha = dados[i];
+    
+    const numeroProcesso = linha[0];
+    const nomeCliente = linha[1];
+    const ultimaMovimentacaoTexto = linha[3]; // MODIFICAÇÃO 1: Lê o texto da Coluna D
+    const proximoContato = linha[5]; // Coluna F
+    const telefoneCliente = linha[7];
+
+    if (proximoContato instanceof Date) {
+      const proximoContatoSemHora = new Date(proximoContato);
+      proximoContatoSemHora.setHours(0, 0, 0, 0);
+
+      // Se a data do próximo contato for HOJE, adiciona à lista
+      if (mesmaData(hoje, proximoContatoSemHora)) {
+        let telefoneFormatado = telefoneCliente ? String(telefoneCliente).replace(/\D/g, '') : "";
+        if (telefoneFormatado && !telefoneFormatado.startsWith('55')) {
+          telefoneFormatado = '55' + telefoneFormatado;
+        }
+
+        processosParaRelatorio.push({
+          numeroProcesso: numeroProcesso,
+          nomeCliente: nomeCliente,
+          telefoneCliente: telefoneFormatado,
+          ultimaMovimentacao: ultimaMovimentacaoTexto // MODIFICAÇÃO 1: Usa o texto da Coluna D
+        });
+        Logger.log(`Processo ${numeroProcesso} selecionado para o relatório.`);
+      }
+    }
+  }
+
+  Logger.log(`${processosParaRelatorio.length} processos encontrados para o relatório de hoje.`);
+  
+  // Chama a função interna para criar a tabela no documento
+  _criarTabelaNoDoc(processosParaRelatorio);
+}
+
+/**
+ * Função privada que cria/atualiza a tabela no Google Docs.
+ * @param {Array<Object>} processosParaDocs A lista de processos a serem inseridos.
+ */
+function _criarTabelaNoDoc(processosParaDocs) {
+  try {
+    const docId = "1E0rKG55beJKKHlULyl_K9gL15fqn1oZtRRTmGqJD1nM"; 
+    const doc = DocumentApp.openById(docId);
+    const body = doc.getBody();
+
+    // MODIFICAÇÃO 2: Limpa completamente o corpo do documento.
+    // Isso remove tabelas, textos e parágrafos vazios, resolvendo o problema de espaçamento.
+    body.clear();
+
+    // Cria nova tabela apenas se houver dados
+    if (processosParaDocs && processosParaDocs.length > 0) {
+      const table = body.appendTable();
+
+      // Cabeçalho
+      const headerRow = table.appendTableRow();
+      ["Número do Processo", "Nome do Cliente", "Telefone do Cliente", "Última Movimentação"]
+        .forEach(texto => {
+          const cell = headerRow.appendTableCell(texto);
+          cell.setBackgroundColor("#d9e1f2");
+          cell.getChild(0).asText().setBold(true);
+        });
+
+      // Linhas de dados
+      processosParaDocs.forEach(processo => {
+        const row = table.appendTableRow();
+        row.appendTableCell(processo.numeroProcesso || "");
+        row.appendTableCell(processo.nomeCliente || "");
+        row.appendTableCell(processo.telefoneCliente || "");
+        row.appendTableCell(processo.ultimaMovimentacao || "");
+      });
+
+      table.setBorderWidth(1).setBorderColor("#000000");
+    }
+
+    doc.saveAndClose();
+    Logger.log(`Documento atualizado com ${processosParaDocs.length} processos.`);
+
+  } catch (error) {
+    Logger.log("Erro ao criar tabela no documento: " + error.toString());
+  }
+}
+
+// É necessário ter a função mesmaData() disponível para este script.
+// Se ela não estiver em outro arquivo do projeto, descomente o bloco abaixo.
+/*
+function mesmaData(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+}
+*/
