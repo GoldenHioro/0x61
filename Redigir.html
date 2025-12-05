@@ -1,0 +1,38 @@
+<div id="redigir-page" class="flex flex-col lg:flex-row gap-6">
+
+  <div class="lg:w-1/4">
+    <h2 class="text-2xl font-bold text-gray-800 mb-4">Central de Redação</h2>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+      <h3 class="font-semibold text-gray-700 border-b pb-2 mb-2">Modelos Disponíveis</h3>
+      <nav class="flex flex-col space-y-1">
+        <a href="#" 
+          onclick="event.preventDefault(); loadRedigirForm('form_contratoparceria');" 
+          class="p-2 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700">
+          Contrato de Parceria
+        </a>
+        
+        <a href="#" 
+           onclick="event.preventDefault(); /* loadRedigirForm('FormProcuracao'); */" 
+           class="p-2 rounded-md text-gray-400 cursor-not-allowed">
+          Procuração (em breve)
+        </a>
+        
+        <a href="#" 
+           onclick="event.preventDefault(); /* loadRedigirForm('FormNotificacao'); */" 
+           class="p-2 rounded-md text-gray-400 cursor-not-allowed">
+          Notificação (em breve)
+        </a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="lg:w-3/4">
+    <div id="redigir-content" class="bg-white p-6 rounded-lg shadow-md min-h-[400px]">
+      <h3 class="text-xl font-semibold text-gray-700">Selecione um modelo</h3>
+      <p class="text-gray-500 mt-2">
+        Escolha um tipo de documento no menu ao lado para começar a redigir.
+      </p>
+    </div>
+  </div>
+
+</div>
