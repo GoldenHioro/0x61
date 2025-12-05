@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-6 lg:p-8">
+
+  <div id="avisos-page" class="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
+    <table class="w-full text-left">
+      <thead class="bg-gray-50 border-b-2 border-gray-200">
+        <tr id="avisos-head">
+          <th class="p-3 text-sm font-semibold tracking-wide text-center">Carregando...</th>
+        </tr>
+      </thead>
+      <tbody id="avisos-table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- ========================================================= -->
+  <!--  SCRIPT PRINCIPAL DA PÁGINA AVISOS                        -->
+  <!-- ========================================================= -->
+  <script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+      carregarAvisos();
+    });
+
+    function carregarAvisos() {
+      const tableHead = document.getElementById("avisos-head");
+      const tableBody = document.getElementById("avisos-table-body");
+
+      tableHead.innerHTML = `<th class="p-3 text-sm font-semibold tracking-wide text-center">Carregando...</th>`;
+      tableBody.innerHTML = "";
+
+      google.script.run
+        .withSuccessHandler(data => {
+          const avisos = JSON.parse(data);
+          renderAvisosTable(avisos);
+        })
+        .withFailureHandler(err => {
+          tableHead.innerHTML = `<th class="p-3 text-sm font-semibold tracking-wide text-center text-red-500">Erro ao carregar avisos</th>`;
+        })
+        .getAvisos();
+    }
+
+
+    /* ============================================================
+       RENDERIZAÇÃO DA TABELA — versão final completa
+    ============================================================ */
+    function renderAvisosTable(avisos) {
+
+      const tableHead = document.getElementById("avisos-head");
+      const tableBody = document.getElementById("avisos-table-body");
+
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+
+      if (!avisos || avisos.length === 0) {
+        tableHead.innerHTML = `<th class="p-3 text-sm font-semibold tracking-wide text-center">Nenhum aviso encontrado.</th>`;
+        return;
+      }
+
+      const headers = Object.keys(avisos[0]);
+
+      // --- A coluna "Enviar" é adicionada antes de tudo ---
+      tableHead.innerHTML = `
+        <th class="p-3 text-sm font-semibold tracking-wide text-left">Enviar</th>
+      `;
+
+      headers.forEach(h => {
+        tableHead.innerHTML += `
+          <th class="p-3 text-sm font-semibold tracking-wide text-left">${h}</th>
+        `;
+      });
+
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      avisos.forEach(row => {
+
+        const numeroProcesso = row["NúmeroProcesso"];
+        const proximoContato = row["PróximoContato"];
+        const contatoEfetuado = row["ContatoEfetuadoHoje"];
+        const linkWhats = row["LinkWhats"];
+
+        let habilitado = false;
+        let tooltip = "";
+
+        const proxDate = parseDate(proximoContato);
+
+        if (!linkWhats || String(linkWhats).trim() === "") {
+          tooltip = "Mensagem ainda não gerada.";
+        }
+        else if (!(proxDate instanceof Date)) {
+          tooltip = "Data de próximo contato inválida.";
+        }
+        else if (hoje.getTime() < proxDate.getTime()) {
+          tooltip = "Ainda não chegou o dia do contato.";
+        }
+        else if (contatoEfetuado === true) {
+          tooltip = "Contato já efetuado.";
+        }
+        else {
+          habilitado = true;
+          tooltip = "Enviar mensagem";
+        }
+
+        let rowHtml = `<tr class="border-b hover:bg-gray-50">`;
+
+        // =======================
+        // COLUNA DO BOTÃO ENVIAR
+        // =======================
+        rowHtml += `
+          <td class="p-2 text-sm text-center">
+            <button
+              class="px-3 py-1 rounded-md text-white font-medium text-xs
+                     ${habilitado ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}"
+              ${habilitado ? "" : "disabled"}
+              title="${tooltip}"
+              onclick="handleSendWhats('${numeroProcesso}', '${linkWhats}')"
+            >
+              Enviar
+            </button>
+          </td>
+        `;
+
+        // ================
+        // OUTRAS COLUNAS
+        // ================
+        headers.forEach(header => {
+          let value = row[header];
+          let classTd = "p-2 text-sm text-gray-700 whitespace-pre-wrap";
+
+          const key = header.toLowerCase();
+
+          if (key.includes("data") || key.includes("contato")) {
+            const cls = getDateClass(value);
+            classTd += " " + cls;
+            value = formatarData(value);
+          }
+
+          if (key === "contatoefetuadohoje") {
+            value = `
+              <div class="flex items-center justify-center">
+                <input type="checkbox"
+                       ${String(row[header]).toLowerCase() === "true" ? "checked" : ""}
+                       onclick="handleCheckboxClick(this, '${numeroProcesso}')"
+                       class="h-5 w-5 rounded">
+              </div>`;
+          }
+
+          rowHtml += `<td class="${classTd}">${value || ""}</td>`;
+        });
+
+        rowHtml += `</tr>`;
+        tableBody.innerHTML += rowHtml;
+      });
+    }
+
+    /* ============================================================
+       FORMATAÇÕES DE DATA / CORES
+    ============================================================ */
+    function formatarData(d) {
+      if (!d) return "";
+      return new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    }
+
+    function getDateClass(d) {
+      if (!d) return "";
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return "";
+
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      const yesterday = new Date(today);
+      yesterday.setUTCDate(today.getUTCDate() - 1);
+
+      const twoDaysAgo = new Date(today);
+      twoDaysAgo.setUTCDate(today.getUTCDate() - 2);
+
+      const target = new Date(d);
+      target.setUTCHours(0, 0, 0, 0);
+
+      if (target.getTime() === today.getTime()) return "bg-green-200 text-green-900";
+      if (target.getTime() === yesterday.getTime()) return "bg-yellow-200 text-yellow-900";
+      if (target.getTime() <= twoDaysAgo.getTime()) return "bg-red-200 text-red-900";
+
+      return "";
+    }
+
+    /* ============================================================
+       FUNÇÕES AUXILIARES — FASE 3 FINALIZADA
+    ============================================================ */
+
+    // Interpreta dd/mm/yyyy
+    function parseDate(value) {
+      if (!value) return null;
+      if (value instanceof Date) return value;
+
+      const parts = String(value).split("/");
+      if (parts.length !== 3) return null;
+
+      const d = new Date(parts[2], parts[1] - 1, parts[0]);
+      return isNaN(d) ? null : d;
+    }
+
+    // Clique no botão "Enviar"
+    function handleSendWhats(numeroProcesso, link) {
+      if (!link || link.trim() === "") {
+        alert("Link de WhatsApp não disponível.");
+        return;
+      }
+
+      // Abre WhatsApp
+      window.open(link, "_blank");
+
+      google.script.run
+        .withSuccessHandler(res => {
+          const obj = JSON.parse(res);
+          if (obj.success) {
+            carregarAvisos(); // atualiza tabela
+          } else {
+            alert("Erro: " + obj.error);
+          }
+        })
+        .withFailureHandler(err => alert("Erro: " + err))
+        .enviarMensagemWhats(numeroProcesso);
+    }
+
+    // Checkbox do "Contato Efetuado Hoje"
+    function handleCheckboxClick(checkbox, numeroProcesso) {
+      const status = checkbox.checked;
+      checkbox.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(res => {
+          const obj = JSON.parse(res);
+          if (!obj.success) {
+            alert("Erro: " + obj.error);
+            checkbox.checked = !status;
+          }
+          checkbox.disabled = false;
+        })
+        .withFailureHandler(err => {
+          alert("Erro: " + err.message);
+          checkbox.checked = !status;
+          checkbox.disabled = false;
+        })
+        .updateContactStatus(numeroProcesso, status);
+    }
+
+  </script>
+
+</body>
+</html>
