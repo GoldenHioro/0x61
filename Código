@@ -1,0 +1,354 @@
+// =================================================================
+// ARQUIVO DE BACKEND (SERVIDOR)
+// Este código roda nos servidores do Google e conecta suas
+// planilhas com a interface do seu site.
+// =================================================================
+
+// TODO: SUBSTITUA PELOS IDs REAIS DAS SUAS PLANILHAS
+const SPREADSHEET_ID_CLIENTES = "1UhTmg7okCm9sDApbWdTXCZ9JbiCbTuBdoHXtDI25HCg"; // ID da planilha "Dados_dos_Clientes"
+const SPREADSHEET_ID_PROCESSOS = "17IzF4m27mR5QJo7Bf6AXQ4domuY0mAlJufJJljnhO2Q"; // ID da planilha "PushProcessual-APS"
+
+function doGet(e) {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Gestor de Escritório')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+}
+
+function getHtmlContent(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// =================================================================
+// FUNÇÕES DA PÁGINA "AVISOS"
+// =================================================================
+function getAvisos() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_PROCESSOS);
+    const sheet = ss.getSheetByName('InformeCliente-APS');
+    if (!sheet) throw new Error("Planilha 'InformeCliente-APS' não encontrada.");
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return JSON.stringify([]);
+    const headers = data.shift().map(h => h.trim());
+    const avisos = data.map(row => {
+      let aviso = {};
+      headers.forEach((header, index) => { aviso[header] = row[index]; });
+      return aviso;
+    });
+    return JSON.stringify(avisos);
+  } catch (e) {
+    return JSON.stringify({ error: e.toString() });
+  }
+}
+
+function updateContactStatus(numeroProcesso, status) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID_PROCESSOS);
+    const sheet = ss.getSheetByName('InformeCliente-APS');
+    if (!sheet) throw new Error("Planilha 'InformeCliente-APS' não encontrada.");
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const processoColIndex = headers.indexOf('NúmeroProcesso');
+    const contatoColIndex = headers.indexOf('ContatoEfetuadoHoje');
+    if (processoColIndex === -1 || contatoColIndex === -1) throw new Error("Colunas 'NúmeroProcesso' ou 'ContatoEfetuadoHoje' não encontradas.");
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][processoColIndex] == numeroProcesso) {
+        sheet.getRange(i + 1, contatoColIndex + 1).setValue(status);
+        return JSON.stringify({ success: true });
+      }
+    }
+    throw new Error(`Processo '${numeroProcesso}' não encontrado.`);
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.toString() });
+  }
+}
+
+// =================================================================
+// FUNÇÕES DA PÁGINA "AGENDA"
+// =================================================================
+function getCalendarEvents() {
+  try {
+    const calendarName = "Audiência-Push";
+    const calendars = CalendarApp.getCalendarsByName(calendarName);
+    if (calendars.length === 0) {
+      throw new Error(`Nenhuma agenda com o nome '${calendarName}' foi encontrada.`);
+    }
+    const calendar = calendars[0];
+    
+    const startTime = new Date();
+    startTime.setDate(startTime.getDate() - 30); // Pega eventos desde 30 dias atrás
+    const endTime = new Date();
+    endTime.setDate(startTime.getDate() + 90); // Até 90 dias para frente
+
+    const events = calendar.getEvents(startTime, endTime);
+    
+    const eventList = events.map(event => {
+      return {
+        title: event.getTitle(),
+        start: event.getStartTime().toISOString(),
+        end: event.getEndTime().toISOString(),
+        description: event.getDescription()
+      };
+    });
+    
+    eventList.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+    return JSON.stringify(eventList);
+  } catch (e) {
+    return JSON.stringify({ error: e.toString() });
+  }
+}
+
+function getClientes() {
+  return JSON.stringify([]);
+}
+
+// Início da Modificação em Código.gs
+
+/**
+ * Retorna uma lista de feriados e recessos do TJDFT para o calendário.
+ * Fonte: Portaria Conjunta 143/2024 do TJDFT.
+ * ATUALIZE ESTA LISTA ANUALMENTE.
+ */
+function getFeriados() {
+  try {
+    const feriados = [
+      // Feriados de 2025
+      { date: '2025-01-01', title: 'Confraternização Universal' },
+      { date: '2025-03-03', title: 'Carnaval' },
+      { date: '2025-03-04', title: 'Carnaval' },
+      { date: '2025-03-05', title: 'Carnaval (Cinzas)' },
+      { date: '2025-04-18', title: 'Paixão de Cristo' },
+      { date: '2025-04-21', title: 'Tiradentes e Aniversário de Brasília' },
+      { date: '2025-05-01', title: 'Dia do Trabalho' },
+      { date: '2025-06-19', title: 'Corpus Christi' },
+      { date: '2025-09-07', title: 'Independência do Brasil' },
+      { date: '2025-10-12', title: 'Nossa Senhora Aparecida' },
+      { date: '2025-10-28', title: 'Dia do Servidor Público' },
+      { date: '2025-11-02', title: 'Finados' },
+      { date: '2025-11-15', title: 'Proclamação da República' },
+      { date: '2025-11-30', title: 'Dia do Evangélico' },
+      { date: '2025-12-25', title: 'Natal' },
+      // Recesso Forense (20/12 a 06/01) - Adicionado como exemplo
+      { start: '2025-12-20', end: '2026-01-07', title: 'Recesso Forense', allDay: true }
+    ];
+    return JSON.stringify(feriados);
+  } catch (e) {
+    return JSON.stringify({ error: e.toString() });
+  }
+  
+}
+
+// =================================================================
+// FUNÇÃO PARA VERIFICAR CONFLITOS NA AGENDA
+// =================================================================
+
+/**
+ * Busca eventos futuros na agenda "Audiência-Push" e retorna
+ * uma lista de pares de eventos que estão em conflito de horário.
+ */
+function getConflictingEvents() {
+  try {
+    const calendarName = "Audiência-Push";
+    const calendars = CalendarApp.getCalendarsByName(calendarName);
+    if (calendars.length === 0) {
+      // Retorna array vazio se a agenda não for encontrada, para não dar erro na home.
+      return JSON.stringify([]); 
+    }
+    const calendar = calendars[0];
+    
+    // Verifica eventos a partir de agora até 90 dias no futuro.
+    const startTime = new Date();
+    const endTime = new Date();
+    endTime.setDate(startTime.getDate() + 90);
+
+    const events = calendar.getEvents(startTime, endTime);
+    
+    if (events.length < 2) {
+      return JSON.stringify([]); // Não pode haver conflito com menos de 2 eventos.
+    }
+    
+    // Mapeia para um formato mais simples e ordena por data de início.
+    const eventList = events.map(event => ({
+      title: event.getTitle(),
+      start: event.getStartTime().toISOString(),
+      end: event.getEndTime().toISOString()
+    })).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+    const conflicts = [];
+    // Compara cada evento com os eventos subsequentes
+    for (let i = 0; i < eventList.length; i++) {
+      for (let j = i + 1; j < eventList.length; j++) {
+        const eventA = eventList[i];
+        const eventB = eventList[j];
+        
+        const startA = new Date(eventA.start);
+        const endA = new Date(eventA.end);
+        const startB = new Date(eventB.start);
+
+        // A condição de conflito: O evento B começa ANTES do evento A terminar.
+        // Como a lista está ordenada pelo início, não precisamos verificar o contrário.
+        if (startB < endA) {
+          conflicts.push([eventA, eventB]);
+        }
+      }
+    }
+    
+    return JSON.stringify(conflicts);
+  } catch (e) {
+    // Em caso de erro, retorna um objeto de erro para ser tratado no frontend.
+    return JSON.stringify({ error: e.toString() });
+  }
+}
+
+// =================================================================
+// FUNÇÕES DA PÁGINA "REDIGIR" (NOVO)
+// =================================================================
+const TEMPLATE_ID = "1q8DcUU9nu29x1QgcoIvoyNC1P_zBcHOPkMIhwAQvNbA";
+const DESTINATION_FOLDER_ID = "1FtDTWKApYhYTkcyg23OHtb0lgn7y7JRR";
+
+/**
+ * Função principal chamada pelo HTML para processar o contrato.
+ * @param {Object} dadosDoForm O objeto de dados vindo do formulário HTML.
+ */
+/**
+ * Função principal chamada pelo HTML para processar o contrato.
+ * @param {Object} dadosDoForm O objeto de dados vindo do formulário HTML.
+ */
+function processarContrato(dadosDoForm) {
+  try {
+    // --- 1. PREPARAÇÃO DO NOVO ARQUIVO ---
+    const destinationFolder = DriveApp.getFolderById(DESTINATION_FOLDER_ID);
+    const templateFile = DriveApp.getFileById(TEMPLATE_ID);
+    
+    // *** MUDANÇA (Request 4): CAIXA ALTA no nome do arquivo ***
+    const newFileName = `Contrato de Parceria - ${dadosDoForm.nome_cliente.toUpperCase()} e ${dadosDoForm.nome_p2.toUpperCase()}`;
+    
+    const newFile = templateFile.makeCopy(newFileName, destinationFolder);
+    const newDoc = DocumentApp.openById(newFile.getId());
+    const body = newDoc.getBody();
+
+    // --- 2. LÓGICA DE GÊNERO (Parceiro 2) ---
+    let artigoconcord = (dadosDoForm.genero_p2 === 'feminino') ? 'a' : 'o';
+    let advogad = (dadosDoForm.genero_p2 === 'feminino') ? 'advogada' : 'advogado';
+    let inscrit = (dadosDoForm.genero_p2 === 'feminino') ? 'inscrita' : 'inscrito';
+    let parceir_upper = (dadosDoForm.genero_p2 === 'feminino') ? 'PARCEIRA' : 'PARCEIRO';
+
+    body.replaceText('{{artigoconcordpartner2}}', artigoconcord);
+    body.replaceText('advogad{{artigoconcordpartner2}}', advogad);
+    body.replaceText('inscrit{{artigoconcordpartner2}}', inscrit);
+    body.replaceText('PARCEIR{{ARTIGOCONCORDPARTNER2}}', parceir_upper);
+
+    // --- 3. SUBSTITUIÇÕES DIRETAS (Parceiro 2) ---
+    // *** MUDANÇA (Request 4): CAIXA ALTA ***
+    body.replaceText('{{PARTNER2}}', dadosDoForm.nome_p2.toUpperCase());
+    body.replaceText('{{Estado Civil}}', dadosDoForm.estado_civil_p2); // Dropdown já envia o texto certo
+    body.replaceText('{{NUMOAB}}', dadosDoForm.oab_p2);
+    body.replaceText('{{Número de Telefone}}', dadosDoForm.telefone_p2); // Máscara já está no HTML
+    body.replaceText('{{Email}}', dadosDoForm.email_p2);
+
+    // --- 4. LÓGICA DO PROCESSO ---
+    let textoProcesso = "";
+    if (dadosDoForm.status_processo === 'protocolar') {
+      textoProcesso = "(A ser protocolado)";
+    } else { // 'andamento'
+      textoProcesso = "n.º " + dadosDoForm.num_processo;
+    }
+    body.replaceText('{{PROCESSO_INFO}}', textoProcesso);
+    
+    // *** MUDANÇA (Request 4): CAIXA ALTA ***
+    body.replaceText('{{NOMECLIENTE}}', dadosDoForm.nome_cliente.toUpperCase());
+    body.replaceText('{{CPFCNPJCLIENTE}}', dadosDoForm.cpf_cnpj_cliente);
+    body.replaceText('{{TIPOAÇÃOCLIENTE}}', dadosDoForm.tipo_acao); // Erro de digitação corrigido
+
+    // --- 5. LÓGICA DAS TAREFAS ---
+    // (Sem alterações aqui)
+    let textoTarefa1 = "";
+    let textoTarefa2 = "";
+    if (dadosDoForm.tipo_divisao === 'igual') {
+      let textoUnico = "Atuação conjunta e solidária em todas as fases processuais.";
+      textoTarefa1 = textoUnico;
+      textoTarefa2 = textoUnico;
+    } else { // 'separada'
+      textoTarefa1 = dadosDoForm.tarefas_p1;
+      textoTarefa2 = dadosDoForm.tarefas_p2;
+    }
+    body.replaceText('{{TAREFASPARTNER1}}', textoTarefa1);
+    body.replaceText('{{TAREFASPARTNER2}}', textoTarefa2);
+
+    // --- 6. HONORÁRIOS E DATA ---
+    
+    // *** MUDANÇA (Request 2): Porcentagem por extenso automática ***
+    let pct1_extenso = numeroParaExtenso(dadosDoForm.pct_p1);
+    let pct2_extenso = numeroParaExtenso(dadosDoForm.pct_p2);
+    
+    body.replaceText('{{porcentagempartner1}}', dadosDoForm.pct_p1);
+    body.replaceText('{{porcentagemextensopartner1}}', pct1_extenso);
+    body.replaceText('{{porcentagempartner2}}', dadosDoForm.pct_p2);
+    body.replaceText('{{porcentagemextensopartner2}}', pct2_extenso);
+
+    // *** MUDANÇA (Request 1): Data automática ***
+    // (Baseado no seu script de exemplo)
+    var data = new Date();
+    var dia = Utilities.formatDate(data, Session.getScriptTimeZone(), 'dd');
+    var mes = obterMesEmPortugues(data.getMonth() + 1); // +1 porque getMonth() é 0-11
+    var ano = Utilities.formatDate(data, Session.getScriptTimeZone(), 'yyyy');
+    // Você mencionou 'Ceilândia/DF' no template original, vamos manter:
+    var dataCriacao = "Ceilândia/DF, " + dia + ' de ' + mes + ' de ' + ano;
+    
+    body.replaceText('{{DATA}}', dataCriacao); // Substitui o placeholder
+
+    // --- 7. FINALIZAÇÃO ---
+    newDoc.saveAndClose(); 
+    return "Contrato gerado! Link: " + newDoc.getUrl();
+
+  } catch (e) {
+    Logger.log(e); 
+    return "Erro ao gerar contrato: " + e.message;
+  }
+}
+
+// =================================================================
+// NOVAS FUNÇÕES DE UTILIDADE (PARA O CONTRATO)
+// =================================================================
+
+/**
+ * Copiado do seu outro script.
+ */
+function obterMesEmPortugues(mesNumero) {
+  var meses = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+  ];
+  return meses[mesNumero - 1]; // getMonth() é 0-11, então getMonth() + 1
+}
+
+/**
+ * Converte um número (até 99) para extenso.
+ * @param {string} numeroString O número como string (ex: "50").
+ * @returns {string} O número por extenso (ex: "cinquenta").
+ */
+function numeroParaExtenso(numeroString) {
+  try {
+    const numero = parseInt(numeroString, 10);
+    if (isNaN(numero)) return numeroString; // Retorna o original se não for número
+
+    const unidades = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+    const especiais = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+    const dezenas = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+
+    if (numero < 10) return unidades[numero];
+    if (numero < 20) return especiais[numero - 10];
+    if (numero < 100) {
+      const dezena = Math.floor(numero / 10);
+      const unidade = numero % 10;
+      return dezenas[dezena] + (unidade > 0 ? ' e ' + unidades[unidade] : '');
+    }
+    if (numero === 100) return 'cem';
+    return numeroString; // Retorna o número se for > 100
+  } catch(e) {
+    return numeroString; // Em caso de erro, retorna o número original
+  }
+}
+
+// Fim da Modificação em Código.gs
+
