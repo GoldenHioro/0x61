@@ -1,0 +1,218 @@
+// @ts-nocheck
+/**
+ * GERADOR DE LINKS WHATSAPP — VERSÃO DEFENSIVA E DEBUG
+ *
+ * - KEEP_OLD_LINKS: quando true, não apaga links existentes a menos que
+ *   seja gerado um novo link válido para a linha.
+ * - Registra ações na coluna 13 (M) — "GeradorLog"
+ *
+ * Colunas (InformeCliente-APS):
+ * A NúmeroProcesso
+ * B NomeCliente
+ * C Assunto
+ * D ÚltimaMovimentação (texto)
+ * E DataÚltimaAtualização (Date)
+ * F PróximoContato (Date)
+ * G ContatoEfetuadoHoje (boolean)
+ * H TelefoneCliente
+ * I DataContatoLongo
+ * J LinkWhats
+ * K PoloDoCliente
+ * L NomeParteContraria
+ * M GeradorLog (esta coluna será escrita por este script)
+ */
+
+const SHEET_NAME = "InformeCliente-APS";
+
+// índices (1-based)
+const COL_NUM_PROC = 1; // A
+const COL_NOME = 2;     // B
+const COL_MOV_TXT = 4;  // D
+const COL_DATA_AT = 5;  // E
+const COL_PROX_CONT = 6;// F
+const COL_CHECK = 7;    // G
+const COL_TEL = 8;      // H
+const COL_LINK = 10;    // J
+const COL_LOG = 13;     // M
+
+// comportamento
+const DIAS_MOV_RECENTE = 3;
+const KEEP_OLD_LINKS = true; // <-- se true: não apaga links antigos desnecessariamente
+
+function gerarLinksWhatsDia() {
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    Logger.log("Planilha não encontrada: " + SHEET_NAME);
+    return;
+  }
+  const last = sh.getLastRow();
+  if (last < 2) {
+    Logger.log("Nenhuma linha de dados encontrada.");
+    return;
+  }
+
+  const todas = sh.getRange(2, 1, last - 1, Math.max(sh.getLastColumn(), COL_LOG)).getValues();
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
+
+  Logger.log("=== INICIANDO GERADOR DE LINKS (DEFENSIVO) ===");
+  const writes = []; // batch writes: {row, col, value}
+
+  todas.forEach((linha, i) => {
+    const rowNum = i + 2;
+    const numero = linha[COL_NUM_PROC - 1];
+    const nome = linha[COL_NOME - 1];
+    const textoMov = linha[COL_MOV_TXT - 1];
+    const dataMov = linha[COL_DATA_AT - 1];
+    const proxContato = linha[COL_PROX_CONT - 1];
+    const contatoEfetuado = linha[COL_CHECK - 1];
+    const telefone = linha[COL_TEL - 1];
+    const linkAtual = linha[COL_LINK - 1];
+
+    let actionLog = [];
+
+    // 0. valida campo processo
+    if (!numero) {
+      actionLog.push("IGNORADO:SEM_NUM_PROC");
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      Logger.log(`[Linha ${rowNum}] Sem número do processo — pulando.`);
+      return;
+    }
+
+    // 1. Checkbox marcado: se marcado, por padrão vamos remover link (se KEEP_OLD_LINKS=false).
+    if (contatoEfetuado === true) {
+      if (!KEEP_OLD_LINKS && linkAtual) {
+        writes.push({row: rowNum, col: COL_LINK, value: ""});
+        actionLog.push("LIMPO:CHECKBOX_TRUE");
+        Logger.log(`[${numero}] checkbox marcado → limpando link.`);
+      } else {
+        actionLog.push("IGNORADO:CHECKBOX_TRUE");
+        Logger.log(`[${numero}] checkbox marcado → mantendo link (KEEP_OLD=${KEEP_OLD_LINKS}).`);
+      }
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      return;
+    }
+
+    // 2. PróximoContato válido?
+    if (!(proxContato instanceof Date)) {
+      // Não é dia válido — decido não mexer no link (mas registro)
+      actionLog.push("IGNORADO:PROX_CONT_INVALIDO");
+      Logger.log(`[${numero}] PróximoContato inválido → não gera link.`);
+      // se KEEP_OLD_LINKS = false, limpamos o link
+      if (!KEEP_OLD_LINKS && linkAtual) {
+        writes.push({row: rowNum, col: COL_LINK, value: ""});
+        actionLog.push("LIMPO:PROX_CONT_INVALIDO");
+      }
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      return;
+    }
+
+    // 3. Só HOJE ou AMANHÃ
+    const pc = new Date(proxContato); pc.setHours(0,0,0,0);
+    const isAllowed = mesmaData(pc, hoje) || mesmaData(pc, amanha);
+    if (!isAllowed) {
+      actionLog.push("IGNORADO:DATA_NAO_PERMITIDA");
+      Logger.log(`[${numero}] PróximoContato (${pc.toLocaleDateString()}) != hoje/amanhã → ignorado.`);
+      if (!KEEP_OLD_LINKS && linkAtual) {
+        writes.push({row: rowNum, col: COL_LINK, value: ""});
+        actionLog.push("LIMPO:DATA_NAO_PERMITIDA");
+      }
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      return;
+    }
+
+    // 4. Telefone válido?
+    let telefoneLimpo = "";
+    if (telefone) telefoneLimpo = String(telefone).replace(/\D/g, "");
+    if (!telefoneLimpo) {
+      actionLog.push("IGNORADO:SEM_TELEFONE");
+      Logger.log(`[${numero}] Sem telefone → limpando link (se existir).`);
+      if (linkAtual) {
+        writes.push({row: rowNum, col: COL_LINK, value: ""});
+        actionLog.push("LIMPO:SEM_TELEFONE");
+      }
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      return;
+    }
+
+    // 5. Interpretar movimentação: recente vs genérica
+    let interpretacao = "";
+    if (dataMov instanceof Date) {
+      const diff = diferencaDias(hoje, dataMov);
+      if (diff <= DIAS_MOV_RECENTE) {
+        try {
+          interpretacao = interpretarMovimentacao(textoMov);
+        } catch (e) {
+          interpretacao = "Houve movimentação recente — aguardo atualização.";
+          actionLog.push("WARN:INTERPRETADOR_FAIL");
+          Logger.log(`[${numero}] erro ao interpretar movimentação: ${e}`);
+        }
+      } else {
+        interpretacao = "Não houve atualização recente no andamento. Continuamos acompanhando.";
+      }
+    } else {
+      interpretacao = "Não há movimentação registrada recentemente.";
+    }
+
+    // 6. Montar mensagem & link
+    let msg = "";
+    try {
+      msg = gerarMensagemFinal({nome: nome, numero: numero}, interpretacao);
+    } catch (e) {
+      actionLog.push("ERR:GERAR_MSG_FAIL");
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      Logger.log(`[${numero}] erro ao gerar mensagem: ${e}`);
+      return;
+    }
+
+    const novoLink = criarLinkWhats(telefoneLimpo, msg);
+    if (!novoLink) {
+      actionLog.push("ERR:LINK_VAZIO");
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      Logger.log(`[${numero}] link vazio gerado — pulando.`);
+      return;
+    }
+
+    // 7. Se KEEP_OLD_LINKS e já existe o mesmo link, não reescreve (só log)
+    if (KEEP_OLD_LINKS && linkAtual && String(linkAtual).trim() === String(novoLink).trim()) {
+      actionLog.push("NOOP:LINK_JA_IGUAL");
+      writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+      Logger.log(`[${numero}] link já existente idêntico → nada a fazer.`);
+      return;
+    }
+
+    // 8. Escrever novo link
+    writes.push({row: rowNum, col: COL_LINK, value: novoLink});
+    actionLog.push("GERADO");
+    actionLog.push("TEL:" + telefoneLimpo);
+    writes.push({row: rowNum, col: COL_LOG, value: actionLog.join(" | ")});
+    Logger.log(`✔ Link gerado: processo ${numero} (${nome})`);
+  });
+
+  // grava tudo em batch
+  writes.forEach(item => {
+    try {
+      sh.getRange(item.row, item.col).setValue(item.value);
+    } catch (e) {
+      Logger.log(`Erro ao gravar linha ${item.row} col ${item.col}: ${e}`);
+    }
+  });
+
+  Logger.log("=== GERADOR DE LINKS FINALIZADO (DEFENSIVO) ===");
+}
+
+/* ----------------------------
+   Funções auxiliares (mesmas)
+   ---------------------------- */
+
+function mesmaData(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() &&
+         d1.getMonth() === d2.getMonth() &&
+         d1.getDate() === d2.getDate();
+}
+
+function diferencaDias(d1, d2) {
+  const ms = d1.getTime() - d2.getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
