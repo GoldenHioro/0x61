@@ -1,0 +1,127 @@
+<style>
+  /* Seu CSS ... (sem alterações) */
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 25px; background-color: #f8f9fa; }
+  h1 { color: #333; }
+  form { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
+  fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+  legend { font-weight: bold; font-size: 1.1em; color: #0056b3; }
+  div { margin-bottom: 15px; }
+  label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; }
+  input[type="text"], input[type="email"], input[type="tel"], select, textarea {
+    width: 95%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em;
+  }
+  textarea { height: 70px; }
+  input[type="radio"] { margin-right: 5px; }
+  .radio-group label { display: inline-block; font-weight: normal; margin-right: 15px; }
+  button {
+    background-color: #007bff; color: white; padding: 12px 20px; border: none;
+    border-radius: 5px; cursor: pointer; font-size: 1.1em;
+  }
+  button:hover { background-color: #0056b3; }
+  #status { margin-top: 15px; font-weight: bold; }
+</style>
+
+<h1>Gerador de Contrato de Parceria</h1>
+<p>Preencha os campos abaixo para gerar o documento.</p>
+
+<form id="contratoForm">
+
+  <fieldset>
+    <legend>Informações do Parceiro(a) 2</legend>
+    <div>
+      <label for="nome_p2">Nome Completo:</label>
+      <input type="text" id="nome_p2" name="nome_p2" required>
+    </div>
+    <div>
+      <label for="genero_p2">Gênero (para concordância):</label>
+      <select id="genero_p2" name="genero_p2">
+        <option value="masculino">Masculino</option>
+        <option value="feminino">Feminino</option>
+      </select>
+    </div>
+    <div>
+      <label for="estado_civil_p2">Estado Civil:</label>
+      <select id="estado_civil_p2" name="estado_civil_p2">
+        <option value="solteiro(a)">Solteiro(a)</option>
+        <option value="casado(a)">Casado(a)</option>
+        <option value="divorciado(a)">Divorciado(a)</option>
+        <option value="viúvo(a)">Viúvo(a)</option>
+        <option value="em união estável">Em União Estável</option>
+      </select>
+    </div>
+    <div>
+      <label for="oab_p2">Nº OAB/DF (Ex: 99999):</label>
+      <input type="text" id="oab_p2" name="oab_p2">
+    </div>
+    <div>
+      <label for="telefone_p2">Telefone (com DDD):</label>
+      <input type="tel" id="telefone_p2" name="telefone_p2" placeholder="(dd) 9 9999-9999" maxlength="16">
+    </div>
+    <div>
+      <label for="email_p2">E-mail:</label>
+      <input type="email" id="email_p2" name="email_p2">
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Objeto (Cliente e Ação)</legend>
+    <div>
+      <label for="nome_cliente">Nome do Cliente:</label>
+      <input type="text" id="nome_cliente" name="nome_cliente">
+    </div>
+    <div>
+      <label for="cpf_cnpj_cliente">CPF/CNPJ do Cliente:</label>
+      <input type="text" id="cpf_cnpj_cliente" name="cpf_cnpj_cliente">
+    </div>
+    <div>
+      <label for="tipo_acao">Tipo da Ação:</label>
+      <input type="text" id="tipo_acao" name="tipo_acao" placeholder="Ex: Ação de Indenização por Danos Morais">
+    </div>
+    <div class="radio-group">
+      <label>Status do Processo:</label>
+      <input type="radio" id="proc_andamento" name="status_processo" value="andamento" checked>
+      <label for="proc_andamento">Em Andamento</label>
+      <input type="radio" id="proc_protocolar" name="status_processo" value="protocolar">
+      <label for="proc_protocolar">A ser Protocolado</label>
+    </div>
+    <div id="campo_num_processo">
+      <label for="num_processo">Número do Processo:</label>
+      <input type="text" id="num_processo" name="num_processo">
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Divisão de Tarefas (Cláusula Segunda)</legend>
+    <div class="radio-group">
+      <input type="radio" id="div_separada" name="tipo_divisao" value="separada" checked>
+      <label for="div_separada">Divisão Separada</label>
+      <input type="radio" id="div_igual" name="tipo_divisao" value="igual">
+      <label for="div_igual">Divisão Igual</label>
+    </div>
+    <div id="bloco_tarefas_separadas">
+      <div>
+        <label for="tarefas_p1">Tarefas Parceiro 1:</label>
+        <textarea id="tarefas_p1" name="tarefas_p1" placeholder="Ex: Captação, atendimento, inicial"></textarea>
+      </div>
+      <div>
+        <label for="tarefas_p2">Tarefas Parceiro 2:</label>
+        <textarea id="tarefas_p2" name="tarefas_p2" placeholder="Ex: Acompanhamento, recursos, audiências"></textarea>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Honorários (Cláusula Terceira)</legend>
+    <div>
+      <label for="pct_p1">% Parceiro 1 (numérico):</label>
+      <input type="text" id="pct_p1" name="pct_p1" placeholder="50">
+    </div>
+    <div>
+      <label for="pct_p2">% Parceiro 2 (numérico):</label>
+      <input type="text" id="pct_p2" name="pct_p2" placeholder="50">
+    </div>
+  </fieldset>
+
+  <button type="submit">Gerar Contrato</button>
+  <div id="status"></div> 
+</form>
