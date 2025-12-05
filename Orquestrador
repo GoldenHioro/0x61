@@ -1,0 +1,37 @@
+function executarFluxoCompleto() {
+  Logger.log("--- INICIANDO FLUXO COMPLETO DE ATUALIZAÇÃO ---");
+
+  try {
+    // ETAPA 1: Extrai movimentações do PJe (e-mails)
+    Logger.log("Etapa 1: Executando extrairInfoPJe()...");
+    extrairInfoPJe();
+    Logger.log("Etapa 1: Concluída.");
+
+    // ETAPA 2: Atualiza planilha InformeCliente-APS
+    Logger.log("Etapa 2: Executando atualizarInformeCliente()...");
+    atualizarInformeCliente();
+    Logger.log("Etapa 2: Concluída.");
+
+    // ETAPA 3: Atualiza datas de próximo contato
+    Logger.log("Etapa 3: Executando atualizarContatosMaestro()...");
+    atualizarContatosMaestro();
+    Logger.log("Etapa 3: Concluída.");
+
+    // ETAPA 4 (NOVO): Gera mensagens + links do WhatsApp
+    Logger.log("Etapa 4: Executando gerarLinksWhatsDia()...");
+    gerarLinksWhatsDia();
+    Logger.log("Etapa 4: Concluída.");
+
+    // ETAPA 5: Gera eventos de audiência
+    Logger.log("Etapa 5: Executando criarEventosConciliacoes()...");
+    criarEventosConciliacoes();
+    Logger.log("Etapa 5: Concluída.");
+
+  } catch (e) {
+    Logger.log("!!! OCORREU UM ERRO DURANTE A EXECUÇÃO DO FLUXO !!!");
+    Logger.log("Erro: " + e.toString());
+    Logger.log("Stack: " + e.stack);
+  }
+
+  Logger.log("--- FLUXO COMPLETO DE ATUALIZAÇÃO FINALIZADO ---");
+}
