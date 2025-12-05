@@ -1,0 +1,122 @@
+/**
+ * INTERPRETADOR DE MOVIMENTAÇÕES — VERSÃO APRIMORADA
+ * -----------------------------------------------
+ * - Regras expansíveis
+ * - Variações para ausência de movimentação
+ * - Fallback inteligente
+ * - Normalização completa de texto
+ */
+
+// ============================
+// VARIAÇÕES "SEM MOVIMENTAÇÃO"
+// ============================
+const SEM_MOVIMENTACAO = [
+  "Desde a última atualização, não houve movimentações novas no processo.",
+  "O processo segue sem mudanças recentes. Estou acompanhando e aviso qualquer novidade.",
+  "Até agora, nada novo foi registrado no processo. Assim que houver movimentação, te envio.",
+  "Nenhuma movimentação recente. Fico observando tudo e te informo quando houver novidade."
+];
+
+
+// ============================
+// REGRAS DE INTERPRETAÇÃO
+// ============================
+const REGRAS_INTERPRETACAO = [
+  {
+    includes: ["juntada de petição", "juntada de manifestação"],
+    resposta: "Foi juntada uma nova petição/manifestação no processo."
+  },
+  {
+    includes: ["remetidos ao gabinete", "conclusos para despacho", "conclusos para decisão"],
+    resposta: "O processo foi enviado ao gabinete do juiz para análise interna."
+  },
+  {
+    includes: ["carga", "carga dos autos"],
+    resposta: "Os autos foram retirados temporariamente para análise ou cumprimento de ato."
+  },
+  {
+    includes: ["certidão", "certifico", "certifica-se"],
+    resposta: "Foi emitida uma certidão para registrar andamento ou informação formal."
+  },
+  {
+    includes: ["concluso", "conclusão"],
+    resposta: "O processo está concluso, aguardando análise ou decisão do juiz."
+  },
+  {
+    includes: ["devolvido", "devolução"],
+    resposta: "Um documento ou mandado retornou ao processo."
+  },
+  {
+    includes: ["arquivado", "arquivamento"],
+    resposta: "O processo foi arquivado. Isso pode indicar conclusão, dependendo do contexto."
+  },
+  {
+    includes: ["expedição", "expedido"],
+    resposta: "Foi expedido um documento ou mandado para andamento do processo."
+  },
+  {
+    includes: ["incluído na pauta", "pauta de conciliação", "audiência"],
+    resposta: "Foi identificada uma pauta ou audiência relacionada ao processo."
+  },
+  {
+    includes: ["intimação", "intimado"],
+    resposta: "Uma das partes foi intimada no processo."
+  },
+  {
+    includes: ["publicado", "diário da justiça", "dj-e"],
+    resposta: "Houve publicação no Diário da Justiça, iniciando contagem de prazos."
+  },
+  {
+  includes: ["decorrido prazo de", "decorrido o prazo", "decurso de prazo"],
+  resposta: [
+    "O prazo se encerrou sem manifestação registrada até o momento, seguindo o fluxo normal do processo.",
+    "Houve apenas o fim do prazo processual sem petições ou respostas protocoladas nessa etapa.",
+    "O prazo oficial chegou ao fim e o processo segue adiante sem manifestações anexadas nesse período.",
+    "O processo avançou porque o prazo se encerrou, sem registros de atuação das partes nessa fase.",
+    "Encerrado o prazo, o andamento continua normalmente conforme a contagem processual."
+  ]
+  },
+  {
+    includes: ["prazo", "manifestar-se", "intimados para"],
+    resposta: "Foi aberta uma fase de prazo para manifestação das partes."
+  }
+];
+
+
+// ============================
+// FUNÇÕES INTERNAS
+// ============================
+
+function normalizarMovimentacao(textoRaw) {
+  if (!textoRaw) return "";
+  return String(textoRaw)
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+
+/**
+ * INTERPRETA A MOVIMENTAÇÃO
+ */
+function interpretarMovimentacao(textoRaw) {
+  const texto = normalizarMovimentacao(textoRaw);
+
+  if (!texto) {
+    return SEM_MOVIMENTACAO[Math.floor(Math.random() * SEM_MOVIMENTACAO.length)];
+  }
+
+  for (let regra of REGRAS_INTERPRETACAO) {
+    for (let palavra of regra.includes) {
+      if (texto.includes(palavra)) {
+        const variacoes = regra.resposta;
+        if (Array.isArray(variacoes)) {
+          return variacoes[Math.floor(Math.random() * variacoes.length)];
+        }
+        return regra.resposta;
+      }
+    }
+  }
+
+  return "O processo registrou uma movimentação recente e segue pelo fluxo regular.";
+}
