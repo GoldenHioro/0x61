@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
+<style>
+  .nav-link.active { background-color: #2563eb; color: white; }
+  #loader { border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  /* CÓDIGO A SER ADICIONADO PARA O DIA DE HOJE EM AZUL */
+  .fc-day-today {
+    background-color: #91fa5c !important; /* Azul claro de fundo */
+    //border: 2px solid #6dfd25 !important; /* Borda azul escuro (tom do seu nav-link ativo) */
+    font-weight: bold;
+  }
+  /* FIM DO CÓDIGO ADICIONADO */
+
+  /* (Seus outros estilos do #mini-calendar, #calendar etc. permanecem aqui) */
+  #mini-calendar .fc-toolbar-title { font-size: 1.3rem; font: bold; }
+  #mini-calendar .fc-daygrid-day-number { font-size: 0.9em; padding: 0px; }
+  #mini-calendar {
+      background-color: #f0f0f0; /* Cinza muito claro */
+      border-radius: 0.5rem; /* Opcional: Para manter as bordas arredondadas se aplicável */
+      padding: 0.5rem; /* Opcional: Para dar um pequeno respiro interno */
+    }
+  #calendar .fc-header-toolbar.fc-toolbar { min-height: 1.7em; margin-bottom: 0.3em !important; }
+  #calendar .fc-toolbar-title { font-size: 1.3em !important; font: bold; }
+  #calendar .fc-button { font-size: 0.8em !important; padding: 0.3em 0.6em !important; }
+  
+</style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="flex flex-col h-screen">
+    <nav class="bg-gray-800 text-gray-200 shadow-lg">
+      <div class="container mx-auto px-6">
+        <div class="flex items-center justify-between h-16">
+          <a href="#" onclick="loadPage(event, 'Homepage')" class="text-2xl font-bold text-white">Gestor APS</a>
+          <div class="flex space-x-2">
+            <a href="#" onclick="loadPage(event, 'Homepage')" class="nav-link px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700">Início</a>
+            <a href="#" onclick="loadPage(event, 'Avisos')" class="nav-link px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700">Quadro de Avisos</a>
+            <a href="#" onclick="loadPage(event, 'Agenda')" class="nav-link px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700">Agenda</a>
+            <a href="#" onclick="loadPage(event, 'Redigir')" class="nav-link px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700">Redigir</a>
+            <a href="#" onclick="loadPage(event, 'Clientes')" class="nav-link px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700">BD Clientes</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <main id="content-area" class="flex-1 p-2 lg:p-8 overflow-y-auto"></main>
+  </div>
+
+  <script>
+    // =================================================================
+    // CONTROLO PRINCIPAL DA APLICAÇÃO
+    // =================================================================
+    function loadPage(event, pageName) {
+      event.preventDefault();
+      document.getElementById('content-area').innerHTML = `<div class="flex justify-center items-center h-full"><div id="loader" class="w-12 h-12 border-4 border-gray-200 rounded-full"></div></div>`;
+      google.script.run
+        .withSuccessHandler(html => {
+          document.getElementById('content-area').innerHTML = html;
+          if (pageName === 'Homepage') initHomepage();
+          else if (pageName === 'Avisos') initAvisosPage();
+          else if (pageName === 'Agenda') initAgendaPage();
+          else if (pageName === 'Redigir') initRedigirPage(); // <-- NOVA CONDIÇÃO
+          else if (pageName === 'Clientes') initClientesPage();
+          updateActiveMenu(pageName);
+        })
+        .getHtmlContent(pageName);
+    }
+
+    function updateActiveMenu(pageName) {
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('onclick').includes(`'${pageName}'`)) {
+          link.classList.add('active');
+        }
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadPage({ preventDefault: () => {} }, 'Homepage');
+    });
+
+  // =================================================================
+  // LÓGICA DA HOMEPAGE
+  // =================================================================
+
+  function initHomepage() {
+    // 1. Busca e renderiza o mini-calendário de feriados (VERSÃO CORRIGIDA)
+    google.script.run.withSuccessHandler(response => {
+      const feriados = JSON.parse(response);
+      if (feriados.error) {
+        const calendarEl = document.getElementById('mini-calendar');
+        if (calendarEl) {
+          calendarEl.innerHTML = `<p class="text-red-500 text-xs text-center">${feriados.error}</p>`;
+        }
+        return;
+      }
+      renderMiniCalendar(feriados);
+    }).getFeriados();
+
+    // 2. Busca e renderiza o alerta de conflitos de agenda (VERSÃO CORRIGIDA)
+    google.script.run
+      .withSuccessHandler(renderConflictAlert)
+      .getConflictingEvents();
+  }
+  
+  function renderMiniCalendar(feriados) {
+    const calendarEl = document.getElementById('mini-calendar');
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = ''; // Limpa antes de renderizar
+
+    const backgroundEvents = feriados.map(f => ({
+      start: f.date || f.start,
+      end: f.end,
+      display: 'background',
+      color: '#c91616',
+      allDay: true
+    }));
+
+    const miniCalendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      locale: 'pt-br',
+      headerToolbar: {
+        left: 'prev',
+        center: 'title',
+        right: 'next'
+      },
+      footerToolbar: {
+        center: 'today'
+      },
+      events: backgroundEvents,
+      height: '100%',
+      aspectRatio: 1.8
+    });
+    miniCalendar.render();
+  }
+
+  // ✨ FUNÇÃO 1: Renderiza o alerta de conflito se houver algum.
+  function renderConflictAlert(jsonResponse) {
+    try {
+      const conflicts = JSON.parse(jsonResponse);
+      if (!conflicts || conflicts.length === 0 || conflicts.error) {
+        return; // Nenhum conflito ou erro, não faz nada.
+      }
+
+      const container = document.getElementById('conflict-alert-container');
+      if (!container) return;
+
+      // Formata a data para "dd/mm/aaaa HH:MM"
+      const formatDateTime = (isoString) => {
+        const date = new Date(isoString);
+        return date.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      };
+
+      let detailsHtml = '';
+      conflicts.forEach((pair, index) => {
+        const eventA = pair[0];
+        const eventB = pair[1];
+        detailsHtml += `
+            <div class="mt-2 p-2 border-l-4 border-yellow-400 bg-yellow-50">
+                <p class="font-semibold">Conflito ${index + 1}:</p>
+                <ul class="list-disc list-inside text-sm">
+                    <li><strong>${eventA.title}</strong> (${formatDateTime(eventA.start)})</li>
+                    <li><strong>${eventB.title}</strong> (${formatDateTime(eventB.start)})</li>
+                </ul>
+            </div>
+        `;
+      });
+
+      container.innerHTML = `
+          <div class="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-md cursor-pointer hover:bg-red-200" onclick="toggleConflictDetails()">
+              <p class="font-bold">⚠️ Atenção: ${conflicts.length} conflito(s) de audiência encontrado(s)!</p>
+              <p class="text-sm">Clique aqui para ver os detalhes.</p>
+          </div>
+          <div id="conflict-details" class="hidden mt-2">
+              <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                  <h4 class="font-bold text-lg mb-2">Detalhes dos Conflitos</h4>
+                  ${detailsHtml}
+              </div>
+          </div>
+      `;
+
+    } catch (e) {
+      console.error("Erro ao processar conflitos:", e);
+    }
+  }
+
+  // ✨ FUNÇÃO 2: Controla a visibilidade (toggle) dos detalhes do conflito.
+  function toggleConflictDetails() {
+    const detailsEl = document.getElementById('conflict-details');
+    if (detailsEl) {
+      detailsEl.classList.toggle('hidden');
+    }
+  }
+
+  // =================================================================
+  // LÓGICA DA PÁGINA DE AVISOS
+  // =================================================================
+
+  function initAvisosPage() {
+    const tableBody = document.getElementById("avisos-table-body");
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '<tr><td colspan="9" class="text-center p-4">A carregar avisos...</td></tr>';
+    google.script.run
+      .withSuccessHandler(response => {
+        const data = JSON.parse(response);
+        if (data.error) {
+          tableBody.innerHTML = `<tr><td colspan="9" class="text-center p-4 text-red-500">${data.error}</td></tr>`;
+        } else {
+          renderAvisosTable(data);
+        }
+      })
+      .getAvisos();
+  }
+
+  function handleCheckboxClick(checkbox, numeroProcesso) {
+    const isChecked = checkbox.checked;
+    checkbox.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(response => {
+        const result = JSON.parse(response);
+        if (!result.success) {
+          alert("Falha ao atualizar: " + result.error);
+          checkbox.checked = !isChecked; // Reverte a alteração visual
+        }
+        checkbox.disabled = false;
+      })
+      .withFailureHandler(error => {
+        alert("Erro de comunicação: " + error.message);
+        checkbox.checked = !isChecked; // Reverte a alteração visual
+        checkbox.disabled = false;
+      })
+      .updateContactStatus(numeroProcesso, isChecked);
+  }
+
+function renderAvisosTable(data) {
+  // 1. Seleciona os elementos da tabela no HTML
+  const tableHeadRow = document.querySelector("#avisos-page thead tr");
+  const tableBody = document.getElementById("avisos-table-body");
+  if (!tableHeadRow || !tableBody) return;
+
+  // 2. Limpa a tabela atual
+  tableHeadRow.innerHTML = "";
+  tableBody.innerHTML = "";
+
+  // 3. Verifica se tem dados
+  if (!data || data.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Nenhum aviso encontrado.</td></tr>';
+    return;
+  }
+
+  // =================================================================================
+  // A MÁGICA ACONTECE AQUI:
+  // Pegamos as chaves (cabeçalhos) mas REMOVEMOS "LinkWhats" e "GeradorLog" da lista visual.
+  // O dado continua existindo na memória para o botão usar, mas não cria coluna na tela.
+  // =================================================================================
+  const headers = Object.keys(data[0]).filter(h => h !== "LinkWhats" && h !== "GeradorLog");
+
+  // 4. Cria o cabeçalho da coluna do Botão (Manual)
+  tableHeadRow.innerHTML = `
+    <th class="p-3 text-sm font-semibold tracking-wide text-left">Enviar</th>
+  `;
+
+  // 5. Cria os cabeçalhos das outras colunas (baseado na lista filtrada acima)
+  headers.forEach(headerText => {
+    tableHeadRow.innerHTML += `<th class="p-3 text-sm font-semibold tracking-wide text-left">${headerText}</th>`;
+  });
+
+  // Funções auxiliares de data (mantidas do seu original)
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  };
+
+  const getDateClass = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
+    const today = new Date();
+    const todayAdjusted = new Date(today.getTime() - (3 * 60 * 60 * 1000));
+    todayAdjusted.setUTCHours(0, 0, 0, 0);
+    const yesterdayAdjusted = new Date(todayAdjusted);
+    yesterdayAdjusted.setUTCDate(todayAdjusted.getUTCDate() - 1);
+    const dayBeforeYesterdayAdjusted = new Date(todayAdjusted);
+    dayBeforeYesterdayAdjusted.setUTCDate(todayAdjusted.getUTCDate() - 2);
+    const targetDate = new Date(dateString);
+    targetDate.setUTCHours(0, 0, 0, 0);
+    if (targetDate.getTime() === todayAdjusted.getTime()) return "bg-green-200 text-green-900";
+    if (targetDate.getTime() === yesterdayAdjusted.getTime()) return "bg-yellow-200 text-yellow-900";
+    if (targetDate.getTime() <= dayBeforeYesterdayAdjusted.getTime()) return "bg-red-200 text-red-900";
+    return "";
+  };
+
+  // 6. Loop para criar as linhas (TR)
+  data.forEach(row => {
+    const numeroProcesso = row.NúmeroProcesso || "";
+    const proximoContato = row.PróximoContato;
+    const contatoEfetuado = row.ContatoEfetuadoHoje;
+    
+    // AQUI: Pegamos o Link da memória bruta. Ele existe aqui mesmo sem ter coluna visual.
+    const linkWhats = row.LinkWhats || ""; 
+
+    // Lógica do Botão
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    let habilitado = false;
+    if (proximoContato) {
+      const dataPC = new Date(proximoContato);
+      dataPC.setHours(0, 0, 0, 0);
+      if (hoje.getTime() >= dataPC.getTime() && contatoEfetuado !== true && linkWhats.trim() !== "") {
+        habilitado = true;
+      }
+    }
+
+    let rowHtml = '<tr class="border-b hover:bg-gray-50">';
+
+    // Cria a Célula do Botão (passando o link oculto para o onclick)
+    rowHtml += `
+    <td class="p-2 text-sm text-center">
+      <button
+        class="px-3 py-1 rounded-md text-white font-medium text-xs
+        ${habilitado ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}"
+        ${habilitado ? "" : "disabled"}
+        onclick="handleSendWhats('${numeroProcesso}', '${linkWhats}')"
+      >
+        Enviar
+      </button>
+    </td>
+    `;
+
+    // Cria as outras células (Usando a lista 'headers' que já filtramos lá em cima)
+    headers.forEach(header => {
+      const key = header.toLowerCase();
+      let cellValue = row[header];
+      let cellClass = "p-2 text-sm text-gray-700 whitespace-pre-wrap";
+
+      if (key === "contatoefetuadohoje") {
+        cellValue = `
+        <div class="flex items-center justify-center">
+          <input type="checkbox" ${String(cellValue).toLowerCase() === "true" ? "checked" : ""}
+          onclick="handleCheckboxClick(this, '${numeroProcesso}')"
+          class="h-5 w-5 rounded">
+        </div>`;
+      } else if (key.includes("data") || key.includes("contato")) {
+        cellClass += " " + getDateClass(cellValue);
+        cellValue = formatDate(cellValue);
+      }
+      // Se o header não está na lista (como LinkWhats), o código nem passa por aqui
+      rowHtml += `<td class="${cellClass}">${cellValue || ""}</td>`;
+    });
+
+    rowHtml += "</tr>";
+    tableBody.innerHTML += rowHtml;
+  });
+}
+
+  // =================================================================
+  // LÓGICA DA PÁGINA DE AGENDA
+  // =================================================================
+
+  let calendarInstance = null;
+  let allEvents = [];
+
+  function initAgendaPage() {
+    google.script.run
+      .withSuccessHandler(response => {
+        const data = JSON.parse(response);
+        if (data.error) {
+          document.getElementById("content-area").innerHTML = `<p class="text-red-500 text-center">${data.error}</p>`;
+        } else {
+          allEvents = data;
+          toggleAgendaView('calendar');
+        }
+      })
+      .getCalendarEvents();
+  }
+
+  function toggleAgendaView(viewType) {
+    // Note: This requires buttons with these IDs in your Agenda.html
+    const listViewBtn = document.getElementById("list-view-btn");
+    const calendarViewBtn = document.getElementById("calendar-view-btn");
+    if(listViewBtn && calendarViewBtn){
+        listViewBtn.classList.toggle("bg-blue-600", viewType === 'list');
+        listViewBtn.classList.toggle("text-white", viewType === 'list');
+        calendarViewBtn.classList.toggle("bg-blue-600", viewType === 'calendar');
+        calendarViewBtn.classList.toggle("text-white", viewType === 'calendar');
+    }
+
+    const calendarView = document.getElementById("calendar");
+    const listView = document.getElementById("event-list");
+
+    if (viewType === 'calendar') {
+      if(listView) listView.style.display = 'none';
+      if(calendarView) calendarView.style.display = 'block';
+      renderCalendarView(allEvents);
+    } else {
+      if(calendarView) calendarView.style.display = 'none';
+      if(listView) listView.style.display = 'block';
+      renderEventList(allEvents);
+    }
+  }
+
+  function renderCalendarView(events) {
+    const calendarEl = document.getElementById("calendar");
+    if (!calendarEl) return;
+    if (calendarInstance) {
+      calendarInstance.destroy();
+    }
+    calendarInstance = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      locale: 'pt-br',
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,listWeek'
+      },
+      events: events,
+      eventColor: '#2563eb',
+      contentHeight: '480px',
+    });
+    calendarInstance.render();
+  }
+
+  function renderEventList(events) {
+    const eventListEl = document.getElementById("event-list");
+    if (!eventListEl) return;
+
+    if (!events || events.length === 0) {
+      eventListEl.innerHTML = '<p class="text-center text-gray-500 mt-8">Nenhum evento encontrado.</p>';
+      return;
+    }
+
+    let html = '<div class="space-y-2">';
+    const options = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+
+    events.forEach(event => {
+      const startDate = new Date(event.start);
+      html += `
+          <div class="bg-white p-2 rounded-lg shadow">
+              <p class="font-bold text-lg text-gray-800">${event.title}</p>
+              <p class="text-sm text-gray-600">${startDate.toLocaleDateString("pt-BR", options)}</p>
+              ${event.description ? `<p class="mt-2 text-gray-700">${event.description.replace(/\n/g, "<br>")}</p>` : ""}
+          </div>`;
+    });
+
+    html += "</div>";
+    eventListEl.innerHTML = html;
+  }
+
+  // =================================================================
+  // LÓGICA DA PÁGINA DE CLIENTES
+  // =================================================================
+
+  function initClientesPage() {
+    console.log("Página de Clientes inicializada.");
+  }
+
+  // =================================================================
+  // LÓGICA DA PÁGINA "REDIGIR"
+  // =================================================================
+  
+  // Esta função é chamada quando a página 'Redigir.html' (o hub) é carregada
+  function initRedigirPage() {
+    console.log("Página 'Redigir' inicializada.");
+    // O 'Redigir.html' agora tem seus próprios botões (onclick)
+    // que chamarão 'loadRedigirForm'
+  }
+
+  // Esta função é chamada DE DENTRO da 'Redigir.html' para carregar um formulário
+  function loadRedigirForm(formName) {
+    const contentEl = document.getElementById('redigir-content');
+    if (!contentEl) return;
+    
+    contentEl.innerHTML = `<div class="flex justify-center items-center p-10"><div id="loader" class="w-12 h-12 border-4 border-gray-200 rounded-full animate-spin"></div></div>`;
+    
+    google.script.run
+      .withSuccessHandler(html => {
+        contentEl.innerHTML = html;
+        
+        // *** A MÁGICA ESTÁ AQUI ***
+        // Após o HTML ser inserido, chamamos o script dele
+        if (formName === 'form_contratoparceria') {
+          initFormContratoParceria(); // Chama a função que colamos abaixo
+        }
+      })
+      .withFailureHandler(err => {
+        contentEl.innerHTML = `<p class="text-red-500 font-bold p-4">Erro Crítico: Não foi possível carregar o arquivo '${formName}'. Verifique o nome do arquivo.</p>`;
+      })
+      .getHtmlContent(formName); // Carrega o HTML do formulário específico
+  }
+
+  // =================================================================
+  // LÓGICA DO FORMULÁRIO DE PARCERIA
+  // =================================================================
+  function initFormContratoParceria() {
+    
+    // --- Lógica para mostrar/esconder campos ---
+    const radiosProcesso = document.querySelectorAll('input[name="status_processo"]');
+    const campoNumProcesso = document.getElementById('campo_num_processo');
+    
+    if (radiosProcesso.length > 0) { 
+      radiosProcesso.forEach(radio => {
+        radio.addEventListener('change', () => {
+          campoNumProcesso.style.display = (radio.value === 'andamento') ? 'block' : 'none';
+        });
+      });
+      document.querySelector('input[name="status_processo"]:checked').dispatchEvent(new Event('change'));
+    }
+
+    const radiosDivisao = document.querySelectorAll('input[name="tipo_divisao"]');
+    const blocoTarefasSep = document.getElementById('bloco_tarefas_separadas');
+    
+    if (radiosDivisao.length > 0) {
+      radiosDivisao.forEach(radio => {
+        radio.addEventListener('change', () => {
+          blocoTarefasSep.style.display = (radio.value === 'separada') ? 'block' : 'none';
+        });
+      });
+      document.querySelector('input[name="tipo_divisao"]:checked').dispatchEvent(new Event('change'));
+    }
+
+    // *** NOVO (Request 5): Máscara de Telefone ***
+    // Aplica a máscara (dd) d dddd-dddd que você pediu
+    const telefoneInput = document.getElementById('telefone_p2');
+    if (telefoneInput) {
+      telefoneInput.addEventListener('input', (e) => {
+        let val = e.target.value.replace(/\D/g, ''); // Remove tudo que não é dígito
+        val = val.replace(/^(\d{2})(\d)/, '($1) $2'); // (dd) d
+        val = val.replace(/(\d) (\d{4})(\d)/, '$1 $2-$3'); // (dd) d dddd-d...
+        e.target.value = val.substring(0, 16); // Limita em (dd) d dddd-dddd
+      });
+    }
+
+    // --- Lógica para enviar o formulário para o Apps Script ---
+    const form = document.getElementById('contratoForm');
+    if (form) { 
+      form.addEventListener('submit', function(e) {
+        e.preventDefault(); 
+        document.getElementById('status').innerText = "Processando...";
+        
+        // *** MUDANÇA (Request 1 e 2): Objeto de dados atualizado ***
+        const dadosDoForm = {
+          // Parceiro 2
+          nome_p2: document.getElementById('nome_p2').value,
+          genero_p2: document.getElementById('genero_p2').value,
+          estado_civil_p2: document.getElementById('estado_civil_p2').value,
+          oab_p2: document.getElementById('oab_p2').value,
+          telefone_p2: document.getElementById('telefone_p2').value,
+          email_p2: document.getElementById('email_p2').value,
+          // Objeto
+          nome_cliente: document.getElementById('nome_cliente').value,
+          cpf_cnpj_cliente: document.getElementById('cpf_cnpj_cliente').value,
+          tipo_acao: document.getElementById('tipo_acao').value,
+          status_processo: document.querySelector('input[name="status_processo"]:checked').value,
+          num_processo: document.getElementById('num_processo').value,
+          // Tarefas
+          tipo_divisao: document.querySelector('input[name="tipo_divisao"]:checked').value,
+          tarefas_p1: document.getElementById('tarefas_p1').value,
+          tarefas_p2: document.getElementById('tarefas_p2').value,
+          // Honorários (APENAS os numéricos)
+          pct_p1: document.getElementById('pct_p1').value,
+          pct_p2: document.getElementById('pct_p2').value
+          // (Campos por extenso e data foram removidos)
+        };
+        
+        google.script.run
+          .withSuccessHandler(onSucesso)
+          .withFailureHandler(onErro)
+          .processarContrato(dadosDoForm); 
+      });
+    }
+
+  } // Fim da initFormContratoParceria
+  
+
+  function handleSendWhats(numeroProcesso, linkWhats) {
+    if (!linkWhats || linkWhats.trim() === "") {
+      alert("Mensagem ainda não foi gerada.");
+      return;
+    }
+
+    // Abrir o link do WhatsApp first:
+    window.open(linkWhats, '_blank');
+
+    // Enviar para o GAS marcar o contado como efetuado
+    google.script.run
+      .withSuccessHandler(res => {
+        const result = JSON.parse(res);
+        if (result.success) {
+          //alert("Contato marcado como efetuado.");
+          initAvisosPage(); // Recarregar tabela
+        } else {
+          alert("Erro: " + result.error);
+        }
+      })
+      .withFailureHandler(err => {
+        alert("Erro de comunicação: " + err.message);
+      })
+      .enviarMensagemWhats(numeroProcesso);
+  }
+</script>
+</body>
+</html>
