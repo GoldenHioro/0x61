@@ -1,0 +1,153 @@
+/**
+ * @OnlyCurrentDoc
+ *
+ * VERSÃO FINAL — InformeCliente-APS
+ * ---------------------------------
+ * - SEMPRE preenche PoloDoCliente (K)
+ * - SEMPRE preenche NomeParteContraria (L)
+ * - Usa fuzzy forte
+ */
+
+//
+// ============================
+// FUNÇÕES AUXILIARES
+// ============================
+//
+
+function normalizarNome(nome) {
+  if (!nome) return "";
+  return nome
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function tokens(nome) {
+  return normalizarNome(nome)
+    .split(/\s+/)
+    .filter(t => t.length > 1);
+}
+
+function fuzzyMatch(nomeA, nomeB) {
+  if (!nomeA || !nomeB) return false;
+
+  const A = tokens(nomeA);
+  const B = tokens(nomeB);
+  if (A.length === 0 || B.length === 0) return false;
+
+  let intersec = 0;
+  A.forEach(a => {
+    if (B.includes(a)) intersec++;
+  });
+
+  const taxa = intersec / Math.min(A.length, B.length);
+
+  return taxa >= 0.5;
+}
+
+//
+// ============================
+// SCRIPT PRINCIPAL
+// ============================
+//
+
+function atualizarInformeCliente() {
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const abaPje = ss.getSheetByName("Dados PJe");
+  const dadosPje = abaPje.getDataRange().getValues();
+
+  const abaInform = ss.getSheetByName("InformeCliente-APS");
+  const dadosInform = abaInform.getDataRange().getValues();
+
+  const headerPje = dadosPje[0];
+  const idxProcPje  = headerPje.indexOf("NúmeroProcesso");
+  const idxAtivo    = headerPje.indexOf("PoloAtivo");
+  const idxPassivo  = headerPje.indexOf("PoloPassivo");
+  const idxAssunto  = headerPje.indexOf("Assunto");
+  const idxMov      = headerPje.indexOf("Movimento");
+  const idxDataMov  = headerPje.indexOf("DataMovimentacao");
+
+  const headerInf = dadosInform[0];
+  const idxProcInf = headerInf.indexOf("NúmeroProcesso");
+  const idxNomeInf = headerInf.indexOf("NomeCliente");
+  const idxAssInf  = headerInf.indexOf("Assunto");
+  const idxMovInf  = headerInf.indexOf("ÚltimaMovimentação");
+  const idxDataInf = headerInf.indexOf("DataÚltimaAtualização");
+  const idxTelInf  = headerInf.indexOf("TelefoneCliente");
+  const idxPolo    = headerInf.indexOf("PoloDoCliente");
+  const idxParte   = headerInf.indexOf("NomeParteContraria");
+
+  // 🟩 Mapa eficiente
+  const mapaInform = {};
+  for (let i = 1; i < dadosInform.length; i++) {
+    const proc = String(dadosInform[i][idxProcInf]).trim();
+    if (proc) {
+      mapaInform[proc] = { linha: i + 1 };
+    }
+  }
+
+  // 🟩 Rodar cada processo do PJe
+  for (let i = 1; i < dadosPje.length; i++) {
+
+    const pjeProc  = String(dadosPje[i][idxProcPje]).trim();
+    if (!pjeProc) continue;
+
+    const ativo    = dadosPje[i][idxAtivo];
+    const passivo  = dadosPje[i][idxPassivo];
+    const assunto  = dadosPje[i][idxAssunto];
+    const mov      = dadosPje[i][idxMov];
+    const dataMov  = dadosPje[i][idxDataMov];
+
+    const linhaInf = mapaInform[pjeProc] ? mapaInform[pjeProc].linha : null;
+
+    // NÃO EXISTE → criar linha
+    if (!linhaInf) {
+
+      // sem nome ainda? deixa NomeCliente em branco. Preenche quando chegar do Maestro.
+      const nova = [
+        pjeProc,
+        "",            // NomeCliente
+        assunto,
+        mov,
+        dataMov,
+        "",            // PróximoContato
+        false,         // ContatoEfetuadoHoje
+        "",            // Telefone
+        "",            // DataContatoLongo
+        "",            // LinkWhats
+        "",            // PoloDoCliente
+        ""             // ParteContrária
+      ];
+
+      abaInform.appendRow(nova);
+      continue;
+    }
+
+    // EXISTE → atualizar SEMPRE
+    const nomeCliente = dadosInform[linhaInf - 1][idxNomeInf];
+
+    let poloCliente = "Desconhecido";
+    let parteContraria = "";
+
+    if (fuzzyMatch(nomeCliente, ativo)) {
+      poloCliente = "Ativo";
+      parteContraria = passivo;
+    } else if (fuzzyMatch(nomeCliente, passivo)) {
+      poloCliente = "Passivo";
+      parteContraria = ativo;
+    }
+
+    // 🟩 ATUALIZA *SEMPRE*, independente de mudança
+    abaInform.getRange(linhaInf, idxAssInf + 1).setValue(assunto);
+    abaInform.getRange(linhaInf, idxMovInf + 1).setValue(mov);
+    abaInform.getRange(linhaInf, idxDataInf + 1).setValue(dataMov);
+    abaInform.getRange(linhaInf, idxPolo + 1).setValue(poloCliente);
+    abaInform.getRange(linhaInf, idxParte + 1).setValue(parteContraria);
+  }
+
+  Logger.log("InformeCliente atualizado COMPLETO — incluindo polo e parte contrária.");
+}
