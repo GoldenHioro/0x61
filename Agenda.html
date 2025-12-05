@@ -1,0 +1,14 @@
+<!-- TEMPLATE DA PÁGINA DE AGENDA (VERSÃO ORIGINAL, TAMANHO MÁXIMO) -->
+<div id="agenda-page" class="bg-white p-4 rounded-lg shadow-md">
+  <!-- Controles da Agenda -->
+  <div class="flex justify-end items-center mb-4">
+    <div class="flex space-x-1 bg-gray-200 p-1 rounded-lg">
+      <button id="calendar-view-btn" onclick="toggleAgendaView('calendar')" class="px-3 py-1 text-sm font-medium rounded-md">Calendário</button>
+      <button id="list-view-btn" onclick="toggleAgendaView('list')" class="px-3 py-1 text-sm font-medium rounded-md">Lista</button>
+    </div>
+  </div>
+
+  <!-- Contêineres para o Calendário e a Lista -->
+  <div id="calendar"></div>
+  <div id="event-list" style="display: none;"></div>
+</div>
