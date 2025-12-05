@@ -1,0 +1,249 @@
+// @ts-nocheck
+
+/** MENSAGENS — versão final alinhada ao InformeCliente **/
+
+// ======================================================
+// SAUDAÇÕES
+// ======================================================
+
+const SAUDACOES = [
+  "Olá, {nome}!",
+  "Oi, {nome}!",
+  "Olá, {nome}! Tudo bem?",
+  "Oi, {nome}! Como vai?",
+  "Olá, {nome}! Espero que esteja bem.",
+  "Olá, {nome}. Tudo certo por aí?",
+  "Olá, {nome}. Como você está?",
+  "Oi, {nome}! Tudo em ordem?",
+  "{nome}, tudo bem?",
+  "{nome}, como vai?",
+  "{nome}, espero que esteja bem.",
+  "{nome}, tudo certo por aí?",
+  "{nome}, como está hoje?",
+  "{nome}, espero que esteja tudo bem.",
+  "Como vai, {nome}?",
+  "Como você está, {nome}?",
+  "Como estão as coisas, {nome}?",
+  "Como tem passado, {nome}?",
+  "Como está tudo por aí, {nome}?",
+  "Como vai por aí, {nome}?",
+  "Está tudo bem por aí, {nome}?",
+  "Tudo bem com você, {nome}?",
+  "Espero que esteja tudo bem, {nome}.",
+  "Espero que esteja tudo certo, {nome}.",
+  "Espero que esteja tendo um bom dia, {nome}.",
+  "Oi, {nome}! Como você tem passado?",
+  "Olá, {nome}! Como estão as coisas por aí?",
+  "{nome}, tudo tranquilo?",
+  "{nome}, espero que seu dia esteja sendo bom!",
+  "{nome}, espero que esteja tudo caminhando bem!",
+  "Olá, {nome}! Tudo tranquilo por aí?",
+  "Oi, {nome}. Espero que esteja tudo indo bem.",
+  "Olá, {nome}! Tudo certo?",
+  "Oi, {nome}. Espero que esteja tudo em paz.",
+  "Como você tem estado, {nome}?",
+  "Tudo certo por aí, {nome}?",
+  "{nome}, tudo ok?",
+  "Olá, {nome}! Tudo tranquilo por aí?",
+  "Oi, {nome}. Como está o seu dia?",
+  "{nome}, tudo em ordem?",
+  "Espero que esteja bem, {nome}!",
+  "Como está o dia, {nome}?",
+  "{nome}, que o dia esteja sendo tranquilo!",
+  "{nome}! Tudo indo bem por aí?",
+  "Olá, {nome}. Desejo que esteja tudo bem.",
+  "Como vão as coisas por aí, {nome}?",
+  "Tudo certo com você, {nome}? Torço que sim!",
+  "Como seguem as coisas por aí, {nome}? Espero que tudo certo!"
+];
+
+
+// ======================================================
+// INTRODUÇÕES
+// (100% válidas, já com {processo} e {parteContraria})
+// ======================================================
+
+const INTRODUCOES = [
+  "Só informando sobre o processo contra {parteContraria}:",
+  "Em relação ao processo {processo} contra {parteContraria}, saiu algo novo!",
+  "Te trago uma atualização sobre o processo {processo} contra {parteContraria}:",
+  "Seu processo {processo} contra {parteContraria} registrou uma movimentação recente:",
+  "Temos uma atualização sobre o processo {processo} contra {parteContraria}.",
+  "Há uma nova movimentação no processo {processo} contra {parteContraria}:",
+  "Tem novidades no processo contra {parteContraria}, veja só:",
+  "Sobre o processo {processo} contra {parteContraria}, segue uma atualização:",
+  "Revisei o processo {processo} contra {parteContraria} e encontrei novidade!",
+  "Verifiquei seu processo {processo} contra {parteContraria} e há uma novidade:",
+  "Atualizações ocorreram no processo {processo} contra {parteContraria}. No caso:",
+  "Envio esta mensagem para atualizar sobre seu processo {processo} contra {parteContraria}:",
+  "Sobre o processo {processo} contra {parteContraria}, trago o seguinte:",
+  "Acompanhando o processo {processo} contra {parteContraria}, vi que temos atualização:",
+  "No processo {processo} contra {parteContraria}, temos o seguinte:",
+  "O processo {processo} contra {parteContraria} teve a seguinte movimentação:",
+  "Temos novidades sobre o processo {processo} contra {parteContraria}!",
+  "Temos uma atualização importante sobre o processo {processo} contra {parteContraria}.",
+  "Veja só o que houve no processo contra {parteContraria}:",
+  "Sobre o processo {processo} contra {parteContraria}, temos uma nova informação:",
+  "Para manter você atualizado, segue o status do processo {processo} contra {parteContraria}:",
+  "Cliente meu não fica desinformado, então trago informações sobre o processo contra {parteContraria}:",
+  "Como de costume, vim te manter a par do processo contra {parteContraria}!",
+  "Trago informações recentes sobre o processo {processo} contra {parteContraria}:"
+];
+
+const INTERPRETACOES_SEM_MOV = [
+  "Não houve atualização recente no andamento do processo {proc} contra {parteContraria}.",
+  "Por enquanto, o processo {proc} contra {parteContraria} segue sem novas movimentações.",
+  "Nenhuma novidade foi registrada no processo {proc} contra {parteContraria} até o momento.",
+  "O processo {proc} contra {parteContraria} não recebeu novas movimentações desde a última verificação.",
+  "No momento, o processo {proc} contra {parteContraria} permanece sem alterações.",
+  "Ainda não houve movimentação recente no processo {proc} contra {parteContraria}.",
+  "O sistema não registrou avanços no processo {proc} contra {parteContraria} desde a última consulta.",
+  "Até agora, o processo {proc} contra {parteContraria} segue estável, sem novidades.",
+  "Verifiquei novamente e o processo {proc} contra {parteContraria} continua sem movimentação.",
+  "Por ora, não há novidades no processo {proc} contra {parteContraria}."
+];
+
+
+// ======================================================
+// ENCERRAMENTOS
+// ======================================================
+
+const ENCERRAMENTOS = [
+  "Qualquer dúvida, me avise. Estou à disposição!",
+  "Se quiser entender mais sobre algo que mencionei, pode chamar.",
+  "Ficarei atento a qualquer novidade e te aviso.",
+  "Continuarei acompanhando tudo de perto e para te atualizar sobre os próximos passos.",
+  "Se precisar de algum esclarecimento a mais, conte comigo!",
+  "No mais, é só isso pra esse breve informe. Qualquer coisa, estamos aí!",
+  "Seguimos por aqui. Qualquer coisa, pode contar comigo.",
+  "Vamos seguindo! Qualquer coisa, é só chamar, tá certo?",
+  "Finalizando a atualização. Obrigado pela confiança no acompanhamento.",
+  "É isso por ora. Se surgir qualquer dúvida, estou por aqui pra ajudar.",
+  "Encerro aqui o informe e sigo atento para te deixar ciente das próximas etapas.",
+  "Por enquanto é só! Conte comigo se precisar de algo.",
+  "Por enquanto é isso! Conte comigo se precisar de alguma coisa. Abraços!",
+  "Assim concluo essa atualização! Surgindo algo mais, eu volto para informar!.",
+  "Assim termino essa breve atualização! Se ocorrer algo, eu volto a entrar em contato. Até mais!.",
+  "Termino aqui esse update. Como de costume, saindo algo novo, eu volto aqui para te dizer, ok?.",
+  "Finalizo por aqui. Se bater qualquer dúvida, me chama.",
+  "Finalizo aqui! Qualquer dúvida, me chame!",
+  "É isso por agora. Agradeço a confiança e vamos em frente!",
+  "Fechando o informe. Mantenho o acompanhamento conforme alinhamos.",
+  "Por ora, tudo certo. Estou à disposição se você precisar.",
+  "É só isso por enquanto. Seguimos em contato se necessário.",
+  "Encerrando a atualização. Conte sempre comigo.",
+  "No mais, é isso! Tenha um bom dia!",
+  "Por enquanto é só, sigo à disposição!",
+  "Por ora, é isso. Conte comigo!",
+  "É só por agora. Até mais!",
+  "Encerramos por aqui, seguimos juntos!",
+  "Assim finalizo a atualização. Até logo!",
+  "No mais, é isso. Estou por aqui se precisar!",
+  "Fecho por aqui. Fique bem!",
+  "É isso por agora. Seguimos à disposição!",
+  "Assim concluo. Um abraço!",
+  "Por ora, é só. Até mais!"
+];
+
+
+
+// ======================================================
+// UTILITÁRIOS
+// ======================================================
+
+function random(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function extrairPrimeiroNome(nomeRaw) {
+  if (!nomeRaw) return "";
+  const partes = String(nomeRaw).trim().split(/\s+/);
+  const primeiro = partes[0].toLowerCase();
+  return primeiro.charAt(0).toUpperCase() + primeiro.slice(1);
+}
+
+
+// ======================================================
+// BUSCAR PARTE CONTRÁRIA NA PLANILHA
+// ======================================================
+
+function obterParteContraria(numeroProcesso) {
+  const ss = SpreadsheetApp.getActive();
+  const aba = ss.getSheetByName("InformeCliente-APS");
+  if (!aba) return { polo: "", parteContraria: "" };
+
+  const dados = aba.getDataRange().getValues();
+  const header = dados[0];
+
+  const idxProc  = header.indexOf("NúmeroProcesso");
+  const idxPolo  = header.indexOf("PoloDoCliente");
+  const idxParte = header.indexOf("NomeParteContraria");
+
+  for (let i = 1; i < dados.length; i++) {
+    if (String(dados[i][idxProc]).trim() === String(numeroProcesso).trim()) {
+      return {
+        polo: dados[i][idxPolo] || "",
+        parteContraria: dados[i][idxParte] || ""
+      };
+    }
+  }
+
+  return { polo: "", parteContraria: "" };
+}
+
+
+// ======================================================
+// MENSAGEM FINAL
+// ======================================================
+
+function gerarMensagemFinal(pje, interpretacao) {
+  const primeiroNome = extrairPrimeiroNome(pje.nome);
+
+  const processoCurto = String(pje.numero).substring(0, 10);
+
+  const info = obterParteContraria(pje.numero);
+  const parteContraria = info.parteContraria || "a outra parte";
+
+  const saud = random(SAUDACOES).replace("{nome}", primeiroNome);
+  const fim = random(ENCERRAMENTOS);
+
+  const interpretacaoTrim = interpretacao.trim().toLowerCase();
+
+  // Detecta ausência de movimentação
+  const isSemMov =
+    interpretacaoTrim.includes("não houve atualização") ||
+    interpretacaoTrim.includes("não há movimentação") ||
+    interpretacaoTrim.includes("nenhuma movimentação") ||
+    interpretacaoTrim.includes("não teve movimentação") ||
+    interpretacaoTrim.includes("sem movimentação");
+
+  // 🔥 NOVO MODO TOTALMENTE ALEATÓRIO PARA "SEM MOVIMENTO"
+  if (isSemMov) {
+    const fraseSemMov = random(INTERPRETACOES_SEM_MOV)
+      .replace("{proc}", processoCurto)
+      .replace("{parte}", parteContraria);
+
+    return `${saud} ${fraseSemMov} ${fim}`;
+  }
+
+  // 🔥 MODO NORMAL (MOVIMENTAÇÃO)
+  const intro = random(INTRODUCOES)
+    .replace("{processo}", processoCurto)
+    .replace("{parteContraria}", parteContraria);
+
+  return `${saud} ${intro} ${interpretacao} ${fim}`;
+}
+
+
+// ======================================================
+// WHATSAPP
+// ======================================================
+
+function criarLinkWhats(telefone, mensagem) {
+  if (!telefone) return "";
+
+  let tel = String(telefone).replace(/\D/g, "");
+  if (!tel.startsWith("55")) tel = "55" + tel;
+
+  return `https://wa.me/${tel}?text=${encodeURIComponent(mensagem)}`;
+}
